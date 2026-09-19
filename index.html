@@ -17,7 +17,6 @@
   }
   #game{position:fixed;inset:0;}
   #game canvas{display:block;width:100%;height:100%;touch-action:none;}
-
   #vignette{position:fixed;inset:0;pointer-events:none;z-index:5;
     background:radial-gradient(ellipse at center, rgba(0,0,0,0) 32%, rgba(0,0,0,.66) 100%);}
   #grain{position:fixed;inset:0;pointer-events:none;z-index:6;opacity:.09;
@@ -45,6 +44,16 @@
   @keyframes paperReadyPulse{0%,100%{opacity:1}50%{opacity:.72}}
   @keyframes paperBump{0%{transform:scale(1)}35%{transform:scale(1.4)}100%{transform:scale(1)}}
   #paperCounter.bump{ animation:paperBump .38s ease-out; }
+  #keyIndicator{
+    position:absolute;top:calc(60px + env(safe-area-inset-top));right:calc(16px + env(safe-area-inset-right));
+    color:#7a7a7a;font-size:14px;letter-spacing:3px;font-weight:bold;
+    text-shadow:0 0 8px rgba(0,0,0,.95);padding:4px 8px;display:none;
+    border:1px solid rgba(233,223,174,.2);border-radius:2px;background:rgba(0,0,0,.35);}
+  #keyIndicator.have{
+    color:#ffd84a;border-color:#ffd84a;
+    text-shadow:0 0 10px rgba(0,0,0,.95), 0 0 16px rgba(255,200,80,.9);
+    animation:keyGlow 1.4s ease-in-out infinite;}
+  @keyframes keyGlow{0%,100%{opacity:1}50%{opacity:.65}}
   #timer{position:absolute;top:calc(52px + env(safe-area-inset-top));left:calc(16px + env(safe-area-inset-left));
     color:#e9dfae;font-size:15px;letter-spacing:2px;opacity:.78;text-shadow:0 0 8px rgba(0,0,0,.9);}
   #timer.warn{color:#ff8030;opacity:1;text-shadow:0 0 10px rgba(255,120,40,.8);}
@@ -170,6 +179,7 @@
 
 <div id="hud">
   <div id="paperCounter">PAPERS 0/7</div>
+  <div id="keyIndicator">⚷ KEY ?</div>
   <div id="timer">00:00</div>
   <div id="levelTag">LEVEL 1</div>
   <div id="score">SCORE 0</div>
@@ -287,7 +297,7 @@ if (!THREE){
 /* ============================================================
    1. SETTINGS
 ============================================================ */
-const SETTINGS_KEY = 'backrooms_settings_v5';
+const SETTINGS_KEY = 'backrooms_settings_v6';
 const DEFAULTS = {
   master: 0.7, sfx: 0.8, sens: 1.0, touchSens: 1.0,
   fov: 76, diff: 1, quality: 2,
@@ -307,8 +317,7 @@ const DIFF = [
 ];
 
 /* ============================================================
-   2. THEMES  —  Four levels now:
-        1. Backrooms  2. Garden  3. Home  4. School (final)
+   2. THEMES
 ============================================================ */
 const THEMES = {
   1: { name: 'LEVEL 1 — THE BACKROOMS', kind: 'backrooms',
@@ -356,9 +365,10 @@ const PAPERS_NEEDED = 7;
 const ENEMY_COUNT = 3;
 const TWO_PI = Math.PI * 2;
 const CAMERA_FAR = 65;
-const EXIT_BEACON_TIME = 150; // 2:30 before the exit starts flashing
+const EXIT_BEACON_TIME = 150;
 const MAX_LEVEL = 4;
-const FINAL_LEVEL_SPEED_MULT = 1.5; // Applied only on the last level
+const FINAL_LEVEL_SPEED_MULT = 1.5;
+const HOME_LEVEL = 3;
 
 /* ============================================================
    4. DOM
@@ -395,6 +405,7 @@ const pauseBtn       = el('pauseBtn');
 const grainEl        = el('grain');
 const vigEl          = el('vignette');
 const paperCounterEl = el('paperCounter');
+const keyIndicatorEl = el('keyIndicator');
 
 if (isTouch) mobileBtns.classList.remove('hidden');
 
@@ -600,17 +611,12 @@ function paintSchoolCeil(ctx, s){
     ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x,y,r,0,7); ctx.fill();
   }
 }
-
-/* ---------- HOME TEXTURES ---------- */
 function paintHomeWall(ctx, s){
-  // Warm cream wallpaper with subtle vertical stripes and small floral dots
   ctx.fillStyle = '#d8c6a2'; ctx.fillRect(0,0,s,s);
-  // Stripes
   for (let x = 0; x < s; x += 16){
     ctx.fillStyle = `rgba(160,128,88,${0.14+Math.random()*0.08})`;
     ctx.fillRect(x, 0, 4, s);
   }
-  // Floral / damask dots
   for (let i = 0; i < 55; i++){
     const x = Math.random()*s, y = Math.random()*s;
     const r = 4 + Math.random()*4;
@@ -620,7 +626,6 @@ function paintHomeWall(ctx, s){
     ctx.fillStyle = g;
     ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill();
   }
-  // Age stains
   for (let i = 0; i < 6; i++){
     const x = Math.random()*s, y = Math.random()*s, r = 15+Math.random()*40;
     const g = ctx.createRadialGradient(x,y,0,x,y,r);
@@ -629,22 +634,18 @@ function paintHomeWall(ctx, s){
   }
 }
 function paintHomeFloor(ctx, s){
-  // Wood planks
   const plankH = 16;
   for (let y = 0; y < s; y += plankH){
     const shade = 90 + Math.random()*35;
     ctx.fillStyle = `rgb(${shade + 40}, ${shade - 5}, ${shade - 55})`;
     ctx.fillRect(0, y, s, plankH);
-    // Dark seam
     ctx.fillStyle = 'rgba(35,18,8,0.7)';
     ctx.fillRect(0, y + plankH - 1, s, 1);
-    // Grain specks
     for (let i = 0; i < 22; i++){
       ctx.fillStyle = `rgba(60,30,15,${0.08+Math.random()*0.14})`;
       ctx.fillRect(Math.random()*s, y + Math.random()*plankH, 2 + Math.random()*10, 1);
     }
   }
-  // Wear/stains
   for (let i = 0; i < 8; i++){
     const x = Math.random()*s, y = Math.random()*s, r = 20+Math.random()*40;
     const g = ctx.createRadialGradient(x,y,0,x,y,r);
@@ -701,6 +702,16 @@ let currentRooms = [];
 let levelElapsed = 0;
 let exitBeaconActive = false;
 let _lastBeaconHintAt = -999;
+
+/* KEY STATE (home level only) */
+let keyObject = null;
+let keyCollected = false;
+let _prevExitUnlocked = false;
+
+/* AUDIO TIMERS */
+let _heartbeatTimer = 0;
+let _ambientTimer = 8 + Math.random() * 10;
+let _flashlightFlicker = 0;
 
 /* ============================================================
    7. MAZE GENERATOR
@@ -811,15 +822,13 @@ function generateMaze(levelNum){
 
   const isSchool = levelNum === MAX_LEVEL;
   const isGarden = levelNum === 2;
-  const isHome = levelNum === 3;
-  // Home level: slightly smaller but denser rooms
+  const isHome = levelNum === HOME_LEVEL;
   const targetRooms = isSchool ? 95 : (isHome ? 100 : (isGarden ? 85 : 90));
 
   const attempts = targetRooms * 14;
   for (let a = 0; a < attempts && rooms.length < targetRooms; a++){
     const roll = Math.random();
     let w, h;
-
     if (roll < 0.35){ w = 2; h = 2 + (Math.random()*2|0); }
     else if (roll < 0.62){ w = 3; h = 2 + (Math.random()*2|0); }
     else if (roll < 0.82){ w = 2 + (Math.random()*2|0); h = 2 + (Math.random()*2|0); }
@@ -1052,6 +1061,27 @@ const exitLight = new THREE.PointLight(0x3affa0, 1.6, 26, 0);
 exitLight.position.y = 1.6;
 exitGroup.add(exitLight);
 
+/* Locked padlock that floats in front of the door when key is missing */
+const padlockGroup = new THREE.Group();
+(function buildPadlock(){
+  const body = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.5, 0.12),
+    new THREE.MeshBasicMaterial({color: 0x3a3a42}));
+  body.position.y = -0.1;
+  padlockGroup.add(body);
+  const shackle = new THREE.Mesh(new THREE.TorusGeometry(0.16, 0.05, 6, 12, Math.PI),
+    new THREE.MeshBasicMaterial({color: 0x808088}));
+  shackle.position.y = 0.16;
+  shackle.rotation.z = Math.PI;
+  padlockGroup.add(shackle);
+  const keyhole = new THREE.Mesh(new THREE.CircleGeometry(0.05, 8),
+    new THREE.MeshBasicMaterial({color: 0x0a0a0a}));
+  keyhole.position.set(0, -0.15, 0.07);
+  padlockGroup.add(keyhole);
+})();
+padlockGroup.position.y = 1.6;
+padlockGroup.visible = false;
+exitGroup.add(padlockGroup);
+
 const beaconRingMat = new THREE.MeshBasicMaterial({
   color: 0xffffff, transparent: true, opacity: 0, side: THREE.DoubleSide,
   depthWrite: false, blending: THREE.AdditiveBlending
@@ -1076,7 +1106,7 @@ exitGroup.add(beaconLight);
 scene.add(exitGroup);
 
 /* ============================================================
-   9b. ENTITIES — THREE PER FLOOR
+   9b. ENTITIES
 ============================================================ */
 const enemies = [];
 
@@ -1142,6 +1172,7 @@ const player = {
   pos: new THREE.Vector3(), radius: 0.6, bobPhase: 0, bobAmount: 0,
   stamina: 100, maxStamina: 100, staminaDrain: 24, staminaRegen: 13,
   sprinting: false, score: 0,
+  footstepPhase: 0,
 };
 let yaw = 0, pitch = 0;
 let state = 'menu';
@@ -1151,7 +1182,7 @@ let sprintTouch = false;
 let transitionLock = false;
 
 /* ============================================================
-   10b. LEVEL 4 AUDIO (plays on the final level)
+   10b. LEVEL 4 AUDIO
 ============================================================ */
 const LEVEL3_TRACK_SRC = 'v1c044g50000d8rjgevog65ltom7tpn0.mov';
 const level3Audio = new Audio();
@@ -1196,6 +1227,9 @@ function clearLevel(){
   collectibles.length = 0;
   flickerMatRef = null;
   currentRooms = [];
+  // Clear key
+  if (keyObject){ scene.remove(keyObject); keyObject = null; }
+  keyCollected = false;
 }
 
 function floorMapFor(theme){
@@ -1296,7 +1330,7 @@ function buildPanels(theme){
   const im2 = makeIM(flicker, flickerMat); if (im2) addLevelObj(im2);
 }
 
-/* ---------- SHARED PROP GEOMETRY / MATERIALS ---------- */
+/* ---------- SHARED PROP GEOMETRY ---------- */
 const PROP_GEOS = {
   box: new THREE.BoxGeometry(1,1,1),
   cyl: new THREE.CylinderGeometry(1,1,1,10),
@@ -1305,6 +1339,7 @@ const PROP_GEOS = {
   pln: new THREE.PlaneGeometry(1,1),
   capsule: new THREE.CapsuleGeometry(0.35, 0.9, 3, 8),
   cone: new THREE.ConeGeometry(1, 1, 8, 1, true),
+  torus: new THREE.TorusGeometry(1, 0.15, 6, 12),
 };
 const PM = {
   white:     new THREE.MeshLambertMaterial({color: 0xe8e6e0}),
@@ -1336,7 +1371,8 @@ const PM = {
   pad:       new THREE.MeshLambertMaterial({color: 0xddd8c8}),
   padYellow: new THREE.MeshLambertMaterial({color: 0xd8c878}),
   tile:      new THREE.MeshLambertMaterial({color: 0xc8d0d0}),
-  wallpaper: new THREE.MeshLambertMaterial({color: 0xd8c6a2}),
+  gold:      new THREE.MeshBasicMaterial({color: 0xffd84a}),
+  goldDark:  new THREE.MeshBasicMaterial({color: 0x8a6a20}),
 };
 
 function prop(group, geo, mat, x, y, z, sx, sy, sz, ry, rx, rz){
@@ -1348,6 +1384,59 @@ function prop(group, geo, mat, x, y, z, sx, sy, sz, ry, rx, rz){
   m.scale.set(sx, sy ?? sx, sz ?? sx);
   group.add(m);
   return m;
+}
+
+/* ---------- KEY MESH ---------- */
+function buildKeyMesh(){
+  const g = new THREE.Group();
+  // Shaft
+  prop(g, PROP_GEOS.box, PM.gold, 0, 0, 0, 0.06, 0.4, 0.06);
+  // Ring
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.10, 0.028, 6, 14), PM.gold);
+  ring.position.y = 0.26;
+  ring.rotation.x = Math.PI/2;
+  g.add(ring);
+  // Teeth
+  prop(g, PROP_GEOS.box, PM.gold, 0.075, -0.16, 0, 0.13, 0.06, 0.05);
+  prop(g, PROP_GEOS.box, PM.gold, 0.055, -0.06, 0, 0.10, 0.06, 0.05);
+  // Glow sprite
+  const glowMat = new THREE.SpriteMaterial({
+    color: 0xffe080, transparent: true, opacity: 0.75,
+    blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false
+  });
+  const glow = new THREE.Sprite(glowMat);
+  glow.scale.set(1.4, 1.4, 1);
+  g.add(glow);
+  return g;
+}
+
+function spawnKey(openCells){
+  if (!openCells.length) return;
+  const c = openCells[(Math.random()*openCells.length)|0];
+  const p = cellToWorld(c.i, c.j);
+  p.x += (Math.random()-0.5)*2.5;
+  p.z += (Math.random()-0.5)*2.5;
+  p.y = 0.9;
+  keyObject = buildKeyMesh();
+  keyObject.position.copy(p);
+  keyObject.userData.baseY = 0.9;
+  keyObject.userData.phase = Math.random() * TWO_PI;
+  scene.add(keyObject);
+}
+
+function updateKeyIndicator(){
+  if (currentLevel !== HOME_LEVEL){
+    keyIndicatorEl.style.display = 'none';
+    return;
+  }
+  keyIndicatorEl.style.display = 'block';
+  if (keyCollected){
+    keyIndicatorEl.textContent = '⚷ KEY ✓';
+    keyIndicatorEl.classList.add('have');
+  } else {
+    keyIndicatorEl.textContent = '⚷ KEY ?';
+    keyIndicatorEl.classList.remove('have');
+  }
 }
 
 /* ---------- SPECIAL ROOM BUILDERS ---------- */
@@ -1433,7 +1522,6 @@ function buildBedroomRoom(room, cx, cz, w, h){
   prop(g, PROP_GEOS.box, PM.darkwood, x + (ry ? 0 : 1.0), 0.75, z + (ry ? 1.0 : 0), 0.08, 1.5, 1.2, ry);
   prop(g, PROP_GEOS.box, PM.offwhite, x + (ry ? 0 : 0.7), 0.65, z + (ry ? 0.7 : 0), 0.5, 0.15, 0.6, ry);
   prop(g, PROP_GEOS.box, PM.darkwood, x - (ry ? 0.9 : 1.4), 0.4, z + (ry ? -1.4 : 0), 0.5, 0.8, 0.5);
-  // Bedside lamp
   prop(g, PROP_GEOS.cyl, PM.glowWarm, x - (ry ? 0.9 : 1.4), 0.9, z + (ry ? -1.4 : 0), 0.1, 0.2, 0.1);
   return g;
 }
@@ -1641,21 +1729,16 @@ function buildUtilityRoom(room, cx, cz, w, h){
   prop(g, PROP_GEOS.cyl, PM.offwhite, cx + w*0.3, 0.9, cz + h*0.3, 0.4, 1.8, 0.4);
   return g;
 }
-
-/* ---------- NEW HOME-SPECIFIC BUILDERS ---------- */
 function buildDiningRoom(room, cx, cz, w, h){
   const g = new THREE.Group();
   const tableW = Math.min(w * 0.6, 3.6);
   const tableD = Math.min(h * 0.5, 2.0);
-  // Table top
   prop(g, PROP_GEOS.box, PM.warmwood, cx, 0.75, cz, tableW, 0.1, tableD);
-  // Legs
   for (const dx of [-tableW/2 + 0.15, tableW/2 - 0.15]){
     for (const dz of [-tableD/2 + 0.15, tableD/2 - 0.15]){
       prop(g, PROP_GEOS.box, PM.darkwood, cx + dx, 0.36, cz + dz, 0.08, 0.72, 0.08);
     }
   }
-  // Chairs on four sides
   const chairPositions = [
     {x: cx, z: cz - tableD/2 - 0.4, ry: 0},
     {x: cx, z: cz + tableD/2 + 0.4, ry: Math.PI},
@@ -1666,104 +1749,84 @@ function buildDiningRoom(room, cx, cz, w, h){
     if (Math.abs(cp.x - cx) > w/2 - 0.3) continue;
     if (Math.abs(cp.z - cz) > h/2 - 0.3) continue;
     prop(g, PROP_GEOS.box, PM.darkwood, cp.x, 0.45, cp.z, 0.4, 0.1, 0.4, cp.ry);
-    const backOff = 0.2;
-    const bx = cp.x + Math.sin(cp.ry) * backOff;
-    const bz = cp.z + Math.cos(cp.ry) * backOff;
+    const bx = cp.x + Math.sin(cp.ry) * 0.2;
+    const bz = cp.z + Math.cos(cp.ry) * 0.2;
     prop(g, PROP_GEOS.box, PM.darkwood, bx, 0.75, bz, 0.4, 0.6, 0.05, cp.ry);
   }
-  // Hanging chandelier
   prop(g, PROP_GEOS.cyl, PM.metal, cx, WALL_H - 0.5, cz, 0.04, 0.9, 0.04);
   prop(g, PROP_GEOS.sph, PM.glowWarm, cx, WALL_H - 0.95, cz, 0.18, 0.14, 0.18);
-  // Centerpiece bowl
   prop(g, PROP_GEOS.cyl, PM.offwhite, cx, 0.85, cz, 0.25, 0.08, 0.25);
   return g;
 }
 function buildNurseryRoom(room, cx, cz, w, h){
   const g = new THREE.Group();
   const rng = () => Math.random() - 0.5;
-  // Crib
   const crx = cx + rng() * (w * 0.25);
   const crz = cz + rng() * (h * 0.25);
   const cribW = 1.2, cribD = 0.7, cribH = 0.8;
   prop(g, PROP_GEOS.box, PM.white, crx, 0.15, crz, cribW, 0.3, cribD);
   prop(g, PROP_GEOS.box, PM.offwhite, crx, 0.4, crz, cribW * 0.9, 0.15, cribD * 0.9);
-  // Rails
   for (let i = 0; i < 6; i++){
     const rx = crx - cribW/2 + 0.1 + i * (cribW - 0.2) / 5;
     prop(g, PROP_GEOS.box, PM.white, rx, 0.65, crz - cribD/2 + 0.05, 0.03, cribH, 0.03);
     prop(g, PROP_GEOS.box, PM.white, rx, 0.65, crz + cribD/2 - 0.05, 0.03, cribH, 0.03);
   }
-  // Teddy bear head
   prop(g, PROP_GEOS.sph, PM.wood, crx + 0.3, 0.55, crz, 0.15, 0.15, 0.15);
-  // Toy blocks on floor
   for (let i = 0; i < 4; i++){
     const bx = cx + rng() * w * 0.6;
     const bz = cz + rng() * h * 0.6;
     const col = Math.random() < 0.5 ? PM.red : PM.blue;
     prop(g, PROP_GEOS.box, col, bx, 0.15, bz, 0.2, 0.2, 0.2, Math.random() * TWO_PI);
   }
-  // Wall decal - mobile
   prop(g, PROP_GEOS.cyl, PM.metal, cx, WALL_H - 0.3, cz, 0.02, 0.6, 0.02);
   return g;
 }
 function buildLaundryRoom(room, cx, cz, w, h){
   const g = new THREE.Group();
   const rng = () => Math.random() - 0.5;
-  // Washer
   const wx = cx - w * 0.2;
   prop(g, PROP_GEOS.box, PM.white, wx, 0.5, cz - h * 0.3, 0.7, 1.0, 0.7);
   prop(g, PROP_GEOS.cyl, PM.metal, wx, 0.75, cz - h * 0.3 + 0.36, 0.25, 0.03, 0.25, 0, Math.PI/2, 0);
-  // Dryer
   const dx = cx + w * 0.2;
   prop(g, PROP_GEOS.box, PM.white, dx, 0.5, cz - h * 0.3, 0.7, 1.0, 0.7);
   prop(g, PROP_GEOS.cyl, PM.metal, dx, 0.75, cz - h * 0.3 + 0.36, 0.25, 0.03, 0.25, 0, Math.PI/2, 0);
-  // Laundry basket
   prop(g, PROP_GEOS.cyl, PM.fabric, cx + rng() * w * 0.3, 0.35, cz + h * 0.2, 0.3, 0.7, 0.3);
   return g;
 }
 function buildHallwayRoom(room, cx, cz, w, h){
   const g = new THREE.Group();
-  // Picture frames along the walls
   const frames = [
-    {x: cx, z: cz - h*0.4, ry: 0,      off: -h*0.4},
-    {x: cx, z: cz + h*0.4, ry: Math.PI, off: h*0.4},
-    {x: cx - w*0.4, z: cz, ry: Math.PI/2, off: -w*0.4},
-    {x: cx + w*0.4, z: cz, ry: -Math.PI/2, off: w*0.4},
+    {x: cx, z: cz - h*0.4, ry: 0},
+    {x: cx, z: cz + h*0.4, ry: Math.PI},
+    {x: cx - w*0.4, z: cz, ry: Math.PI/2},
+    {x: cx + w*0.4, z: cz, ry: -Math.PI/2},
   ];
   for (const f of frames){
-    // Frame border
     prop(g, PROP_GEOS.box, PM.darkwood, f.x, 1.8, f.z, 0.5, 0.7, 0.06, f.ry);
-    // Inner picture
     const picMat = Math.random() < 0.5 ? PM.book2 : PM.book4;
     prop(g, PROP_GEOS.pln, picMat, f.x, 1.8, f.z, 0.42, 0.6, 1, f.ry);
   }
-  // Small console table
   prop(g, PROP_GEOS.box, PM.darkwood, cx, 0.75, cz, 0.9, 0.08, 0.35);
   prop(g, PROP_GEOS.box, PM.darkwood, cx - 0.35, 0.4, cz, 0.08, 0.75, 0.3);
   prop(g, PROP_GEOS.box, PM.darkwood, cx + 0.35, 0.4, cz, 0.08, 0.75, 0.3);
-  // Vase on table
   prop(g, PROP_GEOS.cyl, PM.blue, cx, 0.9, cz, 0.1, 0.2, 0.1);
   return g;
 }
 function buildAtticRoom(room, cx, cz, w, h){
   const g = new THREE.Group();
   const rng = () => Math.random() - 0.5;
-  // Roof beams (visual)
   for (let k = 0; k < 3; k++){
     const bx = cx - w*0.35 + k * (w*0.35);
     prop(g, PROP_GEOS.box, PM.darkwood, bx, WALL_H - 0.3, cz, 0.15, 0.15, h);
   }
-  // Old boxes and trunks
   for (let i = 0; i < 6; i++){
     const bx = cx + rng() * w * 0.6;
     const bz = cz + rng() * h * 0.6;
     const s = 0.5 + Math.random() * 0.4;
     prop(g, PROP_GEOS.box, PM.wood, bx, s/2, bz, s, s, s, Math.random() * TWO_PI);
   }
-  // Old rocking chair
   prop(g, PROP_GEOS.box, PM.darkwood, cx - w*0.3, 0.4, cz + h*0.3, 0.5, 0.1, 0.5);
   prop(g, PROP_GEOS.box, PM.darkwood, cx - w*0.3, 0.7, cz + h*0.3 - 0.2, 0.5, 0.6, 0.08);
-  // Hanging light bulb
   prop(g, PROP_GEOS.cyl, PM.black, cx, WALL_H - 0.6, cz, 0.02, 1.2, 0.02);
   prop(g, PROP_GEOS.sph, PM.glowWarm, cx, WALL_H - 1.2, cz, 0.1, 0.12, 0.1);
   return g;
@@ -1771,19 +1834,16 @@ function buildAtticRoom(room, cx, cz, w, h){
 function buildBasementRoom(room, cx, cz, w, h){
   const g = new THREE.Group();
   const rng = () => Math.random() - 0.5;
-  // Pipes across ceiling
   for (let k = 0; k < 3; k++){
     const pz = cz - h*0.3 + k * (h*0.3);
     const pipe = prop(g, PROP_GEOS.cyl, PM.rust, cx, WALL_H - 0.25, pz, 0.1, w, 0.1);
     pipe.rotation.z = Math.PI/2;
   }
-  // Old furniture covered in cloth
   for (let i = 0; i < 4; i++){
     const bx = cx + rng() * w * 0.6;
     const bz = cz + rng() * h * 0.6;
     prop(g, PROP_GEOS.box, PM.offwhite, bx, 0.5, bz, 1.2, 1.0, 0.9, Math.random() * TWO_PI);
   }
-  // Furnace
   prop(g, PROP_GEOS.box, PM.rust, cx - w*0.3, 0.9, cz - h*0.3, 0.9, 1.8, 0.9);
   prop(g, PROP_GEOS.box, PM.glowRed, cx - w*0.3, 1.0, cz - h*0.3 + 0.46, 0.3, 0.15, 0.02);
   return g;
@@ -1821,8 +1881,6 @@ function buildSpecialRoomProps(){
 /* ---------- HOME FILLER PROPS ---------- */
 function buildHomeProps(theme, open){
   const dummy = new THREE.Object3D();
-
-  // Ceiling pendant light bulbs (visual, additive-ish; no actual point lights)
   const lightCells = [];
   for (let j = 1; j < ROWS-1; j++){
     for (let i = 1; i < COLS-1; i++){
@@ -1850,7 +1908,6 @@ function buildHomeProps(theme, open){
     addLevelObj(bulbIM); addLevelObj(cordIM);
   }
 
-  // Wall-mounted picture frames on walls adjacent to open cells
   const frameCells = [];
   for (let j = 1; j < ROWS-1; j++){
     for (let i = 1; i < COLS-1; i++){
@@ -1879,7 +1936,6 @@ function buildHomeProps(theme, open){
     addLevelObj(im);
   }
 
-  // Scattered small rugs on floors
   const rugCount = Math.min(40, Math.floor(open.length * 0.10));
   if (rugCount){
     const rugColors = [0x8a3a30, 0x305a40, 0x4a3060, 0x806030, 0x603020];
@@ -1899,7 +1955,7 @@ function buildHomeProps(theme, open){
   }
 }
 
-/* ---------- THEMED FILLER PROPS (existing) ---------- */
+/* ---------- OTHER THEMED FILLERS ---------- */
 function buildBackroomsProps(theme, open){
   const dummy = new THREE.Object3D();
   const wallTex = getBackWallTex();
@@ -2173,11 +2229,11 @@ const NOTES_HOME = [
   "There is a bath running in a room I cannot find.",
   "The piano plays when I am not in the room. It is polite about it.",
   "Someone's laundry is still in the dryer. It has been running for days.",
-  "There are three of them here too. They move like family.",
   "The bedrooms are made. The beds are still warm.",
   "I sat on the sofa and the cushions sank as if someone was already sitting there.",
   "Do not eat anything from the kitchen. Do not drink from the taps.",
   "The front door leads to the hallway. The back door leads here.",
+  "The key is somewhere in this house. So is the thing that hid it.",
 ];
 const NOTES_SCHOOL = [
   "ATTENDANCE — Roll call said my name. I did not answer.",
@@ -2329,25 +2385,22 @@ function buildLevel(levelNum){
   papersCollected = 0;
   exitDenyCooldown = false;
   updatePaperCounter(false);
+  updateKeyIndicator();
 
   levelElapsed = 0;
   exitBeaconActive = false;
   _lastBeaconHintAt = -999;
+  _prevExitUnlocked = false;
   timerEl.classList.remove('warn');
 
-  // Infinite stamina + 1.5x speed on the FINAL level only
-  if (levelNum === MAX_LEVEL){
-    staminaFill.classList.add('infinite');
-  } else {
-    staminaFill.classList.remove('infinite');
-  }
+  if (levelNum === MAX_LEVEL) staminaFill.classList.add('infinite');
+  else staminaFill.classList.remove('infinite');
 
   scene.background = new THREE.Color(theme.fog);
   scene.fog = new THREE.Fog(theme.fog, theme.fogNear, theme.fogFar);
   ambientLight.color.setHex(theme.ambient); ambientLight.intensity = theme.ambientI;
   hemi.color.setHex(theme.hemiSky); hemi.groundColor.setHex(theme.hemiGround); hemi.intensity = theme.hemiI;
 
-  // Player light color per theme
   if (theme.kind === 'school') playerLight.color.setHex(0xb8c4e0);
   else if (theme.kind === 'home') playerLight.color.setHex(0xffb070);
   else playerLight.color.setHex(0xffeaa0);
@@ -2400,10 +2453,15 @@ function buildLevel(levelNum){
   buildCollectibles(open);
   buildExit(theme);
 
+  // Spawn key on the HOME level only
+  if (levelNum === HOME_LEVEL){
+    spawnKey(open);
+  }
+
   player.pos.copy(cellToWorld(playerStart.i, playerStart.j));
   yaw = Math.random() * TWO_PI;
   pitch = 0;
-  player.bobAmount = 0; player.bobPhase = 0;
+  player.bobAmount = 0; player.bobPhase = 0; player.footstepPhase = 0;
   player.stamina = player.maxStamina;
 
   spawnEnemies();
@@ -2415,6 +2473,7 @@ function buildLevel(levelNum){
   flashBtn.classList.remove('on');
   damageVig.style.opacity = 0;
   _lastDamageOp = '';
+  _flashlightFlicker = 0;
 
   camera.position.set(player.pos.x, 1.62, player.pos.z);
   camera.rotation.y = yaw; camera.rotation.x = pitch; camera.rotation.z = 0;
@@ -2560,6 +2619,8 @@ function initAudio(){
   } catch (err) { actx = null; }
 }
 function resumeAudio(){ if (actx && actx.state === 'suspended') actx.resume().catch(() => {}); }
+
+/* ---- Core SFX ---- */
 function playScareSound(){
   if (!actx) return;
   try {
@@ -2670,6 +2731,254 @@ function playBeaconPing(){
   } catch (err) {}
 }
 
+/* ---- NEW SFX ---- */
+function playFootstep(hard){
+  if (!actx) return;
+  try {
+    const t = actx.currentTime;
+    const len = Math.floor(actx.sampleRate * (hard ? 0.09 : 0.055));
+    const buf = actx.createBuffer(1, len, actx.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < len; i++){
+      const env = Math.pow(1 - i/len, 2);
+      d[i] = (Math.random()*2-1) * env;
+    }
+    const src = actx.createBufferSource(); src.buffer = buf;
+    const f = actx.createBiquadFilter();
+    f.type = 'lowpass';
+    f.frequency.value = hard ? 340 : 520;
+    f.Q.value = 1.2;
+    const g = actx.createGain();
+    g.gain.value = hard ? 0.085 : 0.045;
+    src.connect(f); f.connect(g); g.connect(sfxGain);
+    src.start(t);
+  } catch (err) {}
+}
+function playHeartbeat(){
+  if (!actx) return;
+  try {
+    const t = actx.currentTime;
+    for (let i = 0; i < 2; i++){
+      const t0 = t + i * 0.16;
+      const o = actx.createOscillator();
+      o.type = 'sine';
+      o.frequency.setValueAtTime(72, t0);
+      o.frequency.exponentialRampToValueAtTime(36, t0 + 0.16);
+      const g = actx.createGain();
+      g.gain.setValueAtTime(0.0001, t0);
+      g.gain.exponentialRampToValueAtTime(0.24 - i*0.10, t0 + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.22);
+      o.connect(g); g.connect(sfxGain);
+      o.start(t0); o.stop(t0 + 0.26);
+    }
+  } catch (err) {}
+}
+function playKeyPickup(){
+  if (!actx) return;
+  try {
+    const t = actx.currentTime;
+    // Sparkle arpeggio
+    const notes = [1567, 2093, 2637, 3136];
+    for (let i = 0; i < notes.length; i++){
+      const o = actx.createOscillator(); o.type = 'triangle';
+      const g = actx.createGain();
+      const t0 = t + i*0.07;
+      o.frequency.setValueAtTime(notes[i], t0);
+      g.gain.setValueAtTime(0.0001, t0);
+      g.gain.exponentialRampToValueAtTime(0.16, t0 + 0.01);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.55);
+      o.connect(g); g.connect(sfxGain);
+      o.start(t0); o.stop(t0 + 0.6);
+    }
+    // Metallic ring
+    const ring = actx.createOscillator(); ring.type = 'sine';
+    ring.frequency.setValueAtTime(3300, t + 0.05);
+    ring.frequency.exponentialRampToValueAtTime(2600, t + 0.7);
+    const rg = actx.createGain();
+    rg.gain.setValueAtTime(0.0001, t + 0.05);
+    rg.gain.exponentialRampToValueAtTime(0.08, t + 0.08);
+    rg.gain.exponentialRampToValueAtTime(0.0001, t + 0.9);
+    ring.connect(rg); rg.connect(sfxGain);
+    ring.start(t + 0.05); ring.stop(t + 1.0);
+  } catch (err) {}
+}
+function playUnlock(){
+  if (!actx) return;
+  try {
+    const t = actx.currentTime;
+    // Mechanical click
+    const clickLen = Math.floor(actx.sampleRate * 0.05);
+    const buf = actx.createBuffer(1, clickLen, actx.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < clickLen; i++){
+      d[i] = (Math.random()*2-1) * Math.pow(1-i/clickLen, 3);
+    }
+    const src = actx.createBufferSource(); src.buffer = buf;
+    const f = actx.createBiquadFilter();
+    f.type = 'bandpass'; f.frequency.value = 2400; f.Q.value = 6;
+    const g1 = actx.createGain(); g1.gain.value = 0.20;
+    src.connect(f); f.connect(g1); g1.connect(sfxGain);
+    src.start(t);
+    // Second click lower
+    const src2 = actx.createBufferSource(); src2.buffer = buf;
+    const f2 = actx.createBiquadFilter();
+    f2.type = 'bandpass'; f2.frequency.value = 1200; f2.Q.value = 4;
+    const g2 = actx.createGain(); g2.gain.value = 0.16;
+    src2.connect(f2); f2.connect(g2); g2.connect(sfxGain);
+    src2.start(t + 0.12);
+    // Rising chime
+    const o = actx.createOscillator(); o.type = 'sine';
+    o.frequency.setValueAtTime(660, t + 0.22);
+    o.frequency.exponentialRampToValueAtTime(1320, t + 0.5);
+    const g = actx.createGain();
+    g.gain.setValueAtTime(0.0001, t + 0.22);
+    g.gain.exponentialRampToValueAtTime(0.15, t + 0.25);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.9);
+    o.connect(g); g.connect(sfxGain);
+    o.start(t + 0.22); o.stop(t + 1.0);
+  } catch (err) {}
+}
+function playAmbientCreak(){
+  if (!actx) return;
+  try {
+    const t = actx.currentTime;
+    const o = actx.createOscillator(); o.type = 'sawtooth';
+    const startF = 70 + Math.random()*70;
+    const endF = startF + 20 + Math.random()*50;
+    o.frequency.setValueAtTime(startF, t);
+    o.frequency.linearRampToValueAtTime(endF, t + 0.7 + Math.random()*0.5);
+    const f = actx.createBiquadFilter();
+    f.type = 'lowpass'; f.frequency.value = 300; f.Q.value = 2.5;
+    const g = actx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.055, t + 0.15);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 1.0);
+    o.connect(f); f.connect(g); g.connect(sfxGain);
+    o.start(t); o.stop(t + 1.2);
+  } catch (err) {}
+}
+function playDistantFootstep(){
+  if (!actx) return;
+  try {
+    const t = actx.currentTime;
+    const len = Math.floor(actx.sampleRate * 0.14);
+    const buf = actx.createBuffer(1, len, actx.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < len; i++){
+      d[i] = (Math.random()*2-1) * Math.pow(1-i/len, 3);
+    }
+    const src = actx.createBufferSource(); src.buffer = buf;
+    const f = actx.createBiquadFilter();
+    f.type = 'lowpass'; f.frequency.value = 180;
+    const g = actx.createGain(); g.gain.value = 0.075;
+    src.connect(f); f.connect(g); g.connect(sfxGain);
+    src.start(t);
+  } catch (err) {}
+}
+function playDistantThump(){
+  if (!actx) return;
+  try {
+    const t = actx.currentTime;
+    const o = actx.createOscillator(); o.type = 'sine';
+    o.frequency.setValueAtTime(65, t);
+    o.frequency.exponentialRampToValueAtTime(35, t + 0.25);
+    const g = actx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.12, t + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.4);
+    o.connect(g); g.connect(sfxGain);
+    o.start(t); o.stop(t + 0.5);
+  } catch (err) {}
+}
+function playWhisper(){
+  if (!actx) return;
+  try {
+    const t = actx.currentTime;
+    const len = Math.floor(actx.sampleRate * 0.9);
+    const buf = actx.createBuffer(1, len, actx.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < len; i++){
+      const env = Math.sin((i/len) * Math.PI);
+      d[i] = (Math.random()*2-1) * env * 0.5;
+    }
+    const src = actx.createBufferSource(); src.buffer = buf;
+    const f = actx.createBiquadFilter();
+    f.type = 'bandpass'; f.frequency.value = 900 + Math.random()*600; f.Q.value = 3;
+    const g = actx.createGain(); g.gain.value = 0.055;
+    src.connect(f); f.connect(g); g.connect(sfxGain);
+    src.start(t);
+  } catch (err) {}
+}
+function playFlashlightClick(){
+  if (!actx) return;
+  try {
+    const t = actx.currentTime;
+    const len = Math.floor(actx.sampleRate * 0.03);
+    const buf = actx.createBuffer(1, len, actx.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < len; i++){
+      d[i] = (Math.random()*2-1) * Math.pow(1-i/len, 4);
+    }
+    const src = actx.createBufferSource(); src.buffer = buf;
+    const f = actx.createBiquadFilter();
+    f.type = 'highpass'; f.frequency.value = 1800;
+    const g = actx.createGain(); g.gain.value = 0.12;
+    src.connect(f); f.connect(g); g.connect(sfxGain);
+    src.start(t);
+  } catch (err) {}
+}
+function playKeyGlint(){
+  if (!actx) return;
+  try {
+    const t = actx.currentTime;
+    const o = actx.createOscillator(); o.type = 'sine';
+    o.frequency.setValueAtTime(2200, t);
+    o.frequency.exponentialRampToValueAtTime(1760, t + 0.4);
+    const g = actx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.06, t + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.5);
+    o.connect(g); g.connect(sfxGain);
+    o.start(t); o.stop(t + 0.55);
+  } catch (err) {}
+}
+function playEnemyGrowl(){
+  if (!actx) return;
+  try {
+    const t = actx.currentTime;
+    const o = actx.createOscillator(); o.type = 'sawtooth';
+    o.frequency.setValueAtTime(140, t);
+    o.frequency.exponentialRampToValueAtTime(70, t + 0.55);
+    const f = actx.createBiquadFilter();
+    f.type = 'lowpass'; f.frequency.value = 480; f.Q.value = 3;
+    const g = actx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.16, t + 0.08);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.7);
+    o.connect(f); f.connect(g); g.connect(sfxGain);
+    o.start(t); o.stop(t + 0.8);
+  } catch (err) {}
+}
+function playLowBreath(){
+  if (!actx) return;
+  try {
+    const t = actx.currentTime;
+    const len = Math.floor(actx.sampleRate * 0.55);
+    const buf = actx.createBuffer(1, len, actx.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < len; i++){
+      const env = Math.sin((i/len) * Math.PI);
+      d[i] = (Math.random()*2-1) * env;
+    }
+    const src = actx.createBufferSource(); src.buffer = buf;
+    const f = actx.createBiquadFilter();
+    f.type = 'bandpass'; f.frequency.value = 320; f.Q.value = 1.4;
+    const g = actx.createGain(); g.gain.value = 0.10;
+    src.connect(f); f.connect(g); g.connect(sfxGain);
+    src.start(t);
+  } catch (err) {}
+}
+
 /* ============================================================
    14. SCARE FACE
 ============================================================ */
@@ -2741,6 +3050,7 @@ function formatTime(t){
 function toggleFlashlight(){
   flashlightOn = !flashlightOn;
   flashBtn.classList.toggle('on', flashlightOn);
+  playFlashlightClick();
 }
 
 function startGame(){
@@ -2851,10 +3161,10 @@ function goToNextLevel(){
   setState('playing');
   let hint;
   if (next === 2) hint = `Find ${PAPERS_NEEDED} papers, then reach the golden gate. Three of them wander here.`;
-  else if (next === 3) hint = `Find ${PAPERS_NEEDED} papers, then reach the amber light. It looks like home. It is not.`;
-  else if (next === 4) hint = `Find ${PAPERS_NEEDED} papers. DO NOT RUN. THEY CAN HEAR RUNNING. Your legs never tire here.`;
+  else if (next === HOME_LEVEL) hint = `Find ${PAPERS_NEEDED} papers AND THE KEY, then reach the amber light.`;
+  else if (next === MAX_LEVEL) hint = `Find ${PAPERS_NEEDED} papers. DO NOT RUN. THEY CAN HEAR RUNNING. Your legs never tire here.`;
   else hint = `Find ${PAPERS_NEEDED} papers.`;
-  showHint(hint, 5600);
+  showHint(hint, 6400);
   if (!isTouch){ const p = renderer.domElement.requestPointerLock?.(); if (p && p.catch) p.catch(() => {}); }
 }
 
@@ -2883,11 +3193,9 @@ function updatePlayer(dt){
   const wantsSprint = (keys['ShiftLeft']||keys['ShiftRight']||sprintTouch) && moving;
 
   if (isFinalLevel){
-    // Infinite stamina + faster baseline
     player.stamina = player.maxStamina;
     if (wantsSprint){ player.sprinting = true; baseSpeed *= 1.75; }
     else player.sprinting = false;
-    // Extra 1.5x speed on the final level (stacks with sprint)
     baseSpeed *= FINAL_LEVEL_SPEED_MULT;
   } else {
     if (wantsSprint && player.stamina > 1){
@@ -2900,6 +3208,23 @@ function updatePlayer(dt){
   }
   staminaFill.style.width = (player.stamina / player.maxStamina * 100) + '%';
   staminaFill.classList.toggle('low', !isFinalLevel && player.stamina < 25);
+
+  // FOOTSTEPS
+  if (moving){
+    const stepRate = player.sprinting ? 3.9 : 2.4;
+    player.footstepPhase += dt * stepRate;
+    if (player.footstepPhase >= 1){
+      player.footstepPhase -= 1;
+      playFootstep(player.sprinting);
+    }
+  } else {
+    player.footstepPhase = 0;
+  }
+
+  // Low-stamina breathing
+  if (!isFinalLevel && player.stamina < 30 && moving){
+    if (Math.random() < dt * 2.5) playLowBreath();
+  }
 
   const sinY = Math.sin(yaw), cosY = Math.cos(yaw);
   const dx = (-sinY*dirF + cosY*dirS) * baseSpeed * dt;
@@ -2920,9 +3245,13 @@ function updatePlayer(dt){
   camera.position.set(player.pos.x, 1.62 + bobY, player.pos.z);
   camera.rotation.y = yaw; camera.rotation.x = pitch; camera.rotation.z = -dirS * 0.018;
   playerLight.position.set(player.pos.x, 1.7, player.pos.z);
+
+  // Flashlight with enemy-near flicker
+  _flashlightFlicker = Math.max(0, _flashlightFlicker - dt);
+  const flickerMul = _flashlightFlicker > 0 ? 0.12 : 1;
   const targetF = flashlightOn ? 1 : 0;
   flashlightIntensity += (targetF - flashlightIntensity) * Math.min(1, dt*8);
-  flashlight.intensity = flashlightIntensity * 2.2;
+  flashlight.intensity = flashlightIntensity * 2.2 * flickerMul;
 
   const px = player.pos.x, pz = player.pos.z;
   for (let i = 0; i < collectibles.length; i++){
@@ -2937,9 +3266,16 @@ function updatePlayer(dt){
       } else if (c.type === 'paper'){
         playPickupChime(); player.score += 25; papersCollected++;
         updatePaperCounter(true);
-        if (papersCollected === PAPERS_NEEDED){
-          playPaperReadySound();
-          showHint(`You have ${PAPERS_NEEDED} papers. The exit is open. RUN.`, 3600);
+        // Check if this made the exit open (with key if home)
+        const needsKey = (currentLevel === HOME_LEVEL);
+        if (papersCollected >= PAPERS_NEEDED && (!needsKey || keyCollected)){
+          if (!_prevExitUnlocked){
+            _prevExitUnlocked = true;
+            if (needsKey){ playUnlock(); showHint("THE KEY TURNS. THE EXIT IS OPEN. RUN.", 3800); }
+            else { playPaperReadySound(); showHint(`You have ${PAPERS_NEEDED} papers. The exit is open. RUN.`, 3600); }
+          }
+        } else if (papersCollected === PAPERS_NEEDED && needsKey && !keyCollected){
+          showHint("PAPERS COMPLETE. NOW FIND THE KEY.", 3200);
         }
         let pool = NOTES_L1;
         if (currentTheme.kind === 'garden') pool = NOTES_L2;
@@ -2954,22 +3290,61 @@ function updatePlayer(dt){
         playGoldChime(); player.score += 100; papersCollected += 3;
         updatePaperCounter(true);
         showHint("GOLDEN PAPER — worth 3 papers!", 2400);
-        if (papersCollected >= PAPERS_NEEDED && papersCollected - 3 < PAPERS_NEEDED){
-          playPaperReadySound();
-          showHint(`You have ${PAPERS_NEEDED}+ papers. The exit is open. RUN.`, 3600);
+        const needsKey = (currentLevel === HOME_LEVEL);
+        if (papersCollected >= PAPERS_NEEDED && (!needsKey || keyCollected) && !_prevExitUnlocked){
+          _prevExitUnlocked = true;
+          if (needsKey){ playUnlock(); showHint("THE KEY TURNS. THE EXIT IS OPEN. RUN.", 3800); }
+          else { playPaperReadySound(); showHint(`You have ${PAPERS_NEEDED}+ papers. The exit is open. RUN.`, 3600); }
         }
       }
       scoreEl.textContent = 'SCORE ' + player.score;
     }
   }
 
+  // KEY PICKUP (home level)
+  if (keyObject && !keyCollected && currentLevel === HOME_LEVEL){
+    const dxk = px - keyObject.position.x;
+    const dzk = pz - keyObject.position.z;
+    if (dxk*dxk + dzk*dzk < 1.6*1.6){
+      keyCollected = true;
+      keyObject.visible = false;
+      playKeyPickup();
+      updateKeyIndicator();
+      showHint("THE KEY IS YOURS", 3000);
+      if (navigator.vibrate) navigator.vibrate([40,30,60]);
+      // If papers already complete, unlock exit
+      if (papersCollected >= PAPERS_NEEDED && !_prevExitUnlocked){
+        _prevExitUnlocked = true;
+        setTimeout(() => {
+          playUnlock();
+          showHint("THE KEY TURNS. THE EXIT IS OPEN. RUN.", 3800);
+        }, 900);
+      }
+    }
+  }
+
+  // EXIT CHECK
   const dEx = px - exitPos.x, dEz = pz - exitPos.z;
   if (dEx*dEx + dEz*dEz < 1.8*1.8){
-    if (papersCollected >= PAPERS_NEEDED) onReachExit();
-    else if (!exitDenyCooldown){
-      exitDenyCooldown = true; playDenySound();
-      const need = PAPERS_NEEDED - papersCollected;
-      showHint(`THE EXIT IS SEALED — FIND ${need} MORE PAPER${need > 1 ? 'S' : ''}`, 2600);
+    const needsKey = (currentLevel === HOME_LEVEL);
+    const hasPapers = papersCollected >= PAPERS_NEEDED;
+    const hasKey = !needsKey || keyCollected;
+    if (hasPapers && hasKey){
+      onReachExit();
+    } else if (!exitDenyCooldown){
+      exitDenyCooldown = true;
+      playDenySound();
+      let msg;
+      if (!hasPapers && !hasKey){
+        const need = PAPERS_NEEDED - papersCollected;
+        msg = `SEALED — NEED ${need} MORE PAPER${need > 1 ? 'S' : ''} AND THE KEY`;
+      } else if (!hasPapers){
+        const need = PAPERS_NEEDED - papersCollected;
+        msg = `THE EXIT IS SEALED — FIND ${need} MORE PAPER${need > 1 ? 'S' : ''}`;
+      } else {
+        msg = `SEALED — THE KEY IS MISSING`;
+      }
+      showHint(msg, 3200);
       if (navigator.vibrate) navigator.vibrate(60);
       setTimeout(() => { exitDenyCooldown = false; }, 2800);
     }
@@ -3000,9 +3375,14 @@ function updateEnemy(dt){
     if (distSq < closestSq) closestSq = distSq;
 
     const chasing = distSq < detect2;
-    if (isFinalLevel && chasing && !e.wasChasing){
-      playLevel3Shriek();
-      if (navigator.vibrate) navigator.vibrate([80, 40, 120]);
+    // Shriek for school, growl for others on first detection
+    if (chasing && !e.wasChasing){
+      if (isFinalLevel){
+        playLevel3Shriek();
+        if (navigator.vibrate) navigator.vibrate([80, 40, 120]);
+      } else {
+        playEnemyGrowl();
+      }
     }
     e.wasChasing = chasing;
     e.chasing = chasing;
@@ -3098,6 +3478,7 @@ function updateEnemy(dt){
     if (distSq < 2.25){ gameOver(); return; }
   }
 
+  // Mutual separation
   const MIN_SEP = 1.6, MIN_SEP2 = MIN_SEP * MIN_SEP;
   for (let a = 0; a < enemies.length; a++){
     for (let b = a+1; b < enemies.length; b++){
@@ -3128,11 +3509,41 @@ function updateEnemy(dt){
   const threat = Math.max(0, 1 - dist / 4);
   const op = (threat * 0.9).toFixed(2);
   if (op !== _lastDamageOp){ _lastDamageOp = op; damageVig.style.opacity = op; }
+
+  // Heartbeat when enemy is near
+  const heartThreat = Math.max(0, 1 - dist / 7);
+  if (heartThreat > 0.1){
+    _heartbeatTimer -= dt;
+    const interval = 1.5 - heartThreat * 1.0;
+    if (_heartbeatTimer <= 0){
+      _heartbeatTimer = interval;
+      playHeartbeat();
+    }
+  } else {
+    _heartbeatTimer = 0;
+  }
+
+  // Flashlight flicker when enemy is chasing and close
+  if (anyChasing && dist < 10){
+    if (Math.random() < dt * 4){
+      _flashlightFlicker = 0.08 + Math.random() * 0.18;
+    }
+  }
 }
 
 function updateExit(now){
   const t = now * 2;
-  const locked = papersCollected < PAPERS_NEEDED;
+  const needsKey = (currentLevel === HOME_LEVEL);
+  const hasKey = !needsKey || keyCollected;
+  const locked = papersCollected < PAPERS_NEEDED || !hasKey;
+
+  // Padlock visibility — only on home level when key is missing
+  if (needsKey && !keyCollected){
+    padlockGroup.visible = true;
+    padlockGroup.rotation.y += 0.02;
+  } else {
+    padlockGroup.visible = false;
+  }
 
   const shouldBeacon = levelElapsed >= EXIT_BEACON_TIME;
   if (shouldBeacon && !exitBeaconActive){
@@ -3209,6 +3620,15 @@ function updateCollectibles(t){
     if (c.collected) continue;
     c.group.position.y = c.baseY + Math.sin(t*2 + c.phase) * 0.14;
     c.group.rotation.y += 0.014;
+  }
+  // Key bobbing + occasional glint sound
+  if (keyObject && !keyCollected){
+    keyObject.position.y = keyObject.userData.baseY + Math.sin(t*2.2 + keyObject.userData.phase) * 0.18;
+    keyObject.rotation.y += 0.025;
+    // Occasional sparkle sound if player is reasonably near
+    const dxk = player.pos.x - keyObject.position.x;
+    const dzk = player.pos.z - keyObject.position.z;
+    if (dxk*dxk + dzk*dzk < 100 && Math.random() < 0.004) playKeyGlint();
   }
 }
 function updateFlicker(now){
@@ -3290,6 +3710,19 @@ function animate(){
   if (state === 'playing'){
     elapsed += dt;
     levelElapsed += dt;
+
+    // Random ambient one-shots
+    _ambientTimer -= dt;
+    if (_ambientTimer <= 0){
+      _ambientTimer = 10 + Math.random() * 16;
+      const r = Math.random();
+      if (r < 0.32) playAmbientCreak();
+      else if (r < 0.55) playDistantFootstep();
+      else if (r < 0.72) playDistantThump();
+      else if (r < 0.82) playWhisper();
+      // else silence
+    }
+
     updatePlayer(dt);
     if (state === 'playing') updateEnemy(dt);
     updateExit(now);
@@ -3366,6 +3799,7 @@ bindSettingControls();
 applySettings();
 refreshSettingsUI();
 updatePaperCounter(false);
+updateKeyIndicator();
 
 startBtn.disabled = false;
 startBtn.textContent = 'ENTER';
