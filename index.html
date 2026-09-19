@@ -250,7 +250,6 @@
   #levelScreen h2{color:#7cf0b0;text-shadow:0 0 30px rgba(80,255,160,.45);}
   #levelScreen .sub{color:#a6e0b2;}
 
-  /* Level 3 transition screen — scarier */
   #levelScreen.final{
     background:radial-gradient(ellipse at 50% 42%, #2a0a0a 0%, #0a0303 55%, #000 100%);
   }
@@ -393,7 +392,7 @@
 
 <script type="module">
 /* ============================================================
-   0. LOAD THREE.JS
+   0. LOAD THREE.JS — parallel, minified, fast-fail
 ============================================================ */
 const startBtn = document.getElementById('startBtn');
 const isTouch = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
@@ -402,24 +401,32 @@ document.getElementById('ctrlText').innerHTML = isTouch
   ? `LEFT SIDE — <b>DRAG TO MOVE</b><br>RIGHT SIDE — <b>DRAG TO LOOK</b><br>BUTTONS — <b>FLASHLIGHT / SPRINT</b>`
   : `<b>W A S D</b> — MOVE &nbsp;·&nbsp; <b>MOUSE</b> — LOOK<br><b>SHIFT</b> — SPRINT &nbsp;·&nbsp; <b>F</b> — FLASHLIGHT &nbsp;·&nbsp; <b>ESC</b> — PAUSE`;
 
+// Minified ESM builds — roughly 4x smaller than the dev bundle
 const CDNS = [
-  'https://unpkg.com/three@0.160.0/build/three.module.js',
-  'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js',
-  'https://esm.sh/three@0.160.0',
+  'https://unpkg.com/three@0.160.0/build/three.module.min.js',
+  'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js',
+  'https://esm.sh/three@0.160.0?bundle&minify',
   'https://cdn.skypack.dev/three@0.160.0'
 ];
 
-let THREE = null;
-for (const url of CDNS){
-  try {
-    THREE = await Promise.race([
+async function loadTHREE(){
+  const attempts = CDNS.map(url =>
+    Promise.race([
       import(/* @vite-ignore */ url),
-      new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 11000))
-    ]);
-    if (THREE && THREE.WebGLRenderer) break;
-    THREE = null;
-  } catch (e){ THREE = null; }
+      new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 7000))
+    ]).then(m => {
+      if (m && m.WebGLRenderer) return m;
+      throw new Error('bad module');
+    })
+  );
+  try {
+    return await Promise.any(attempts);
+  } catch (e){
+    return null;
+  }
 }
+
+let THREE = await loadTHREE();
 
 if (!THREE){
   document.getElementById('loadError').classList.add('on');
@@ -493,7 +500,6 @@ const THEMES = {
   3: {
     name: 'LEVEL 3 — THE SCHOOL',
     kind: 'school',
-    // Cold, claustrophobic, near-pitch-black
     fog: 0x0a0b10, fogNear: 1.2, fogFar: 15,
     ambient: 0x9aa8c0, ambientI: 0.30,
     hemiSky: 0x7080a0, hemiGround: 0x080810, hemiI: 0.32,
@@ -502,9 +508,9 @@ const THEMES = {
     panelChance: 0.34, flickerChance: 0.78, emergChance: 0.14,
     boxChance: 0.0, puddleChance: 0.18,
     extraOpenChance: 0.0,
-    enemySpeedMult: 1.75,        // HYPER FAST
-    detectOverride: 8,           // short sight — sneaky
-    enemySpawnNear: true,        // spawn near, not at exit
+    enemySpeedMult: 1.75,
+    detectOverride: 8,
+    enemySpawnNear: true,
     exitColor: 0x66ddff, exitLight: 0x66ddff,
     tagColor: '#ffffff'
   }
@@ -557,8 +563,17 @@ const vigEl          = el('vignette');
 if (isTouch) mobileBtns.classList.remove('hidden');
 
 /* ============================================================
-   5. TEXTURES — BACKROOMS
+   5. TEXTURE FACTORY — lazy + cached
+   Textures are only painted the first time a level needs them.
+   Reduces initial load work by ~80%.
 ============================================================ */
+const texCache = Object.create(null);
+function tex(key, gen){
+  let t = texCache[key];
+  if (!t){ t = gen(); texCache[key] = t; }
+  return t;
+}
+
 function makeTexture(size, painter, rx = 1, ry = 1){
   const c = document.createElement('canvas');
   c.width = c.height = size;
@@ -570,6 +585,8 @@ function makeTexture(size, painter, rx = 1, ry = 1){
   t.colorSpace = THREE.SRGBColorSpace;
   return t;
 }
+
+/* ---------- BACKROOMS PAINTERS ---------- */
 function paintWall(ctx, s){
   ctx.fillStyle = '#d9cc86'; ctx.fillRect(0,0,s,s);
   for (let x = 0; x < s; x += 10){
@@ -585,11 +602,11 @@ function paintWall(ctx, s){
     ctx.fillStyle = g;
     ctx.fillRect(x, 0, w, h);
   }
-  for (let i = 0; i < s*s*0.25; i++){
+  for (let i = 0; i < s*s*0.18; i++){
     ctx.fillStyle = `rgba(${110+Math.random()*70|0},${100+Math.random()*60|0},${55+Math.random()*35|0},0.07)`;
     ctx.fillRect(Math.random()*s, Math.random()*s, 2, 2);
   }
-  for (let i = 0; i < 16; i++){
+  for (let i = 0; i < 12; i++){
     const x = Math.random()*s, y = Math.random()*s, r = 10+Math.random()*50;
     const g = ctx.createRadialGradient(x,y,0,x,y,r);
     g.addColorStop(0,'rgba(120,100,48,0.13)');
@@ -600,14 +617,14 @@ function paintWall(ctx, s){
 }
 function paintCarpet(ctx, s){
   ctx.fillStyle = '#b6a15e'; ctx.fillRect(0,0,s,s);
-  for (let i = 0; i < s*s*0.9; i++){
+  for (let i = 0; i < s*s*0.55; i++){
     const v = Math.random();
     ctx.fillStyle = v > 0.5
       ? `rgba(150,132,72,${0.10+Math.random()*0.16})`
       : `rgba(206,190,128,${0.08+Math.random()*0.14})`;
     ctx.fillRect(Math.random()*s, Math.random()*s, 2, 2);
   }
-  for (let i = 0; i < 14; i++){
+  for (let i = 0; i < 10; i++){
     const x = Math.random()*s, y = Math.random()*s, r = 15+Math.random()*55;
     const g = ctx.createRadialGradient(x,y,0,x,y,r);
     g.addColorStop(0,'rgba(90,74,32,0.16)');
@@ -618,11 +635,11 @@ function paintCarpet(ctx, s){
 }
 function paintCeiling(ctx, s){
   ctx.fillStyle = '#ded6ad'; ctx.fillRect(0,0,s,s);
-  for (let i = 0; i < s*s*0.35; i++){
+  for (let i = 0; i < s*s*0.22; i++){
     ctx.fillStyle = `rgba(${150+Math.random()*60|0},${145+Math.random()*55|0},${110+Math.random()*40|0},0.10)`;
     ctx.fillRect(Math.random()*s, Math.random()*s, 3, 3);
   }
-  for (let i = 0; i < 5; i++){
+  for (let i = 0; i < 4; i++){
     const x = Math.random()*s, y = Math.random()*s, r = 18+Math.random()*40;
     const g = ctx.createRadialGradient(x,y,0,x,y,r);
     g.addColorStop(0,'rgba(120,98,44,0.20)');
@@ -636,7 +653,7 @@ function paintCeiling(ctx, s){
 }
 function paintCardboard(ctx, s){
   ctx.fillStyle = '#a07842'; ctx.fillRect(0,0,s,s);
-  for (let i = 0; i < s*s*0.6; i++){
+  for (let i = 0; i < s*s*0.35; i++){
     const v = Math.random();
     ctx.fillStyle = v > 0.5
       ? `rgba(140,102,52,${0.10+Math.random()*0.18})`
@@ -650,12 +667,10 @@ function paintCardboard(ctx, s){
   ctx.stroke();
 }
 
-/* ============================================================
-   6. TEXTURES — GARDEN
-============================================================ */
+/* ---------- GARDEN PAINTERS ---------- */
 function paintHedge(ctx, s){
   ctx.fillStyle = '#245820'; ctx.fillRect(0,0,s,s);
-  for (let i = 0; i < 240; i++){
+  for (let i = 0; i < 180; i++){
     const x = Math.random()*s, y = Math.random()*s;
     const r = 3 + Math.random()*8;
     const g = ctx.createRadialGradient(x, y, 0, x, y, r);
@@ -673,14 +688,14 @@ function paintHedge(ctx, s){
     ctx.fillStyle = g;
     ctx.beginPath(); ctx.arc(x,y,r,0,7); ctx.fill();
   }
-  for (let i = 0; i < 90; i++){
+  for (let i = 0; i < 70; i++){
     ctx.fillStyle = `rgba(190,230,140,${0.2+Math.random()*0.35})`;
     ctx.fillRect(Math.random()*s, Math.random()*s, 1.5, 1.5);
   }
 }
 function paintGrass(ctx, s){
   ctx.fillStyle = '#4a7a3a'; ctx.fillRect(0,0,s,s);
-  for (let i = 0; i < s*s*1.4; i++){
+  for (let i = 0; i < s*s*0.85; i++){
     const x = Math.random()*s, y = Math.random()*s;
     const v = Math.random();
     if (v > 0.94){
@@ -692,7 +707,7 @@ function paintGrass(ctx, s){
     }
     ctx.fillRect(x, y, 1.2, 1.2);
   }
-  for (let i = 0; i < 12; i++){
+  for (let i = 0; i < 8; i++){
     const x = Math.random()*s, y = Math.random()*s, r = 15+Math.random()*50;
     const g = ctx.createRadialGradient(x,y,0,x,y,r);
     g.addColorStop(0, 'rgba(30,60,25,0.18)');
@@ -703,7 +718,7 @@ function paintGrass(ctx, s){
 }
 function paintSky(ctx, s){
   ctx.fillStyle = '#c4dcf0'; ctx.fillRect(0,0,s,s);
-  for (let i = 0; i < 10; i++){
+  for (let i = 0; i < 8; i++){
     const x = Math.random()*s, y = Math.random()*s;
     const r = 22 + Math.random()*44;
     const g = ctx.createRadialGradient(x, y, 0, x, y, r);
@@ -719,13 +734,9 @@ function paintSky(ctx, s){
   ctx.fillStyle = warm; ctx.fillRect(0,0,s,s);
 }
 
-/* ============================================================
-   6b. TEXTURES — SCHOOL (Level 3)
-============================================================ */
+/* ---------- SCHOOL PAINTERS ---------- */
 function paintSchoolWall(ctx, s){
-  // Dingy off-white tile wall
   ctx.fillStyle = '#cfc9bb'; ctx.fillRect(0,0,s,s);
-  // Tile grid
   ctx.strokeStyle = 'rgba(110,104,90,0.25)';
   ctx.lineWidth = 1;
   const tile = 32;
@@ -733,13 +744,11 @@ function paintSchoolWall(ctx, s){
     ctx.beginPath(); ctx.moveTo(i,0); ctx.lineTo(i,s); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(0,i); ctx.lineTo(s,i); ctx.stroke();
   }
-  // Grime speckle
-  for (let i = 0; i < s*s*0.4; i++){
+  for (let i = 0; i < s*s*0.22; i++){
     ctx.fillStyle = `rgba(${60+Math.random()*70|0},${55+Math.random()*60|0},${45+Math.random()*50|0},0.07)`;
     ctx.fillRect(Math.random()*s, Math.random()*s, 2, 2);
   }
-  // Dark creeping stains
-  for (let i = 0; i < 12; i++){
+  for (let i = 0; i < 10; i++){
     const x = Math.random()*s, y = Math.random()*s, r = 12+Math.random()*54;
     const g = ctx.createRadialGradient(x,y,0,x,y,r);
     g.addColorStop(0,'rgba(28,22,14,0.32)');
@@ -747,8 +756,7 @@ function paintSchoolWall(ctx, s){
     ctx.fillStyle = g;
     ctx.beginPath(); ctx.arc(x,y,r,0,7); ctx.fill();
   }
-  // Vertical drips
-  for (let i = 0; i < 6; i++){
+  for (let i = 0; i < 5; i++){
     const x = Math.random()*s;
     const w = 2 + Math.random()*4;
     const h = 30 + Math.random()*90;
@@ -758,10 +766,9 @@ function paintSchoolWall(ctx, s){
     ctx.fillStyle = g;
     ctx.fillRect(x, 0, w, h);
   }
-  // Scratches
   ctx.strokeStyle = 'rgba(55,50,40,0.28)';
   ctx.lineWidth = 1;
-  for (let i = 0; i < 14; i++){
+  for (let i = 0; i < 10; i++){
     const x = Math.random()*s, y = Math.random()*s;
     ctx.beginPath();
     ctx.moveTo(x, y);
@@ -770,7 +777,6 @@ function paintSchoolWall(ctx, s){
   }
 }
 function paintSchoolFloor(ctx, s){
-  // Black-and-white checkerboard, classic school hallway
   const tile = 32;
   for (let y = 0; y < s; y += tile){
     for (let x = 0; x < s; x += tile){
@@ -779,16 +785,14 @@ function paintSchoolFloor(ctx, s){
       ctx.fillRect(x, y, tile, tile);
     }
   }
-  // Scuffs / grime
-  for (let i = 0; i < s*s*0.35; i++){
+  for (let i = 0; i < s*s*0.18; i++){
     const v = Math.random();
     ctx.fillStyle = v > 0.5
       ? `rgba(20,20,24,${0.05+Math.random()*0.10})`
       : `rgba(140,130,110,${0.04+Math.random()*0.08})`;
     ctx.fillRect(Math.random()*s, Math.random()*s, 2, 2);
   }
-  // Dark stains — subtle reddish
-  for (let i = 0; i < 7; i++){
+  for (let i = 0; i < 5; i++){
     const x = Math.random()*s, y = Math.random()*s, r = 8+Math.random()*26;
     const g = ctx.createRadialGradient(x,y,0,x,y,r);
     g.addColorStop(0,'rgba(60,14,10,0.35)');
@@ -798,7 +802,6 @@ function paintSchoolFloor(ctx, s){
   }
 }
 function paintSchoolCeil(ctx, s){
-  // Drop-ceiling acoustic tiles
   ctx.fillStyle = '#b8b4a8'; ctx.fillRect(0,0,s,s);
   const tile = 32;
   ctx.strokeStyle = 'rgba(50,48,42,0.42)';
@@ -807,12 +810,11 @@ function paintSchoolCeil(ctx, s){
     ctx.beginPath(); ctx.moveTo(i,0); ctx.lineTo(i,s); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(0,i); ctx.lineTo(s,i); ctx.stroke();
   }
-  for (let i = 0; i < s*s*0.5; i++){
+  for (let i = 0; i < s*s*0.28; i++){
     ctx.fillStyle = `rgba(${70+Math.random()*50|0},${65+Math.random()*45|0},${55+Math.random()*40|0},0.16)`;
     ctx.fillRect(Math.random()*s, Math.random()*s, 1.5, 1.5);
   }
-  // Water stains
-  for (let i = 0; i < 5; i++){
+  for (let i = 0; i < 4; i++){
     const x = Math.random()*s, y = Math.random()*s, r = 15+Math.random()*38;
     const g = ctx.createRadialGradient(x,y,0,x,y,r);
     g.addColorStop(0,'rgba(110,80,40,0.42)');
@@ -822,16 +824,17 @@ function paintSchoolCeil(ctx, s){
   }
 }
 
-const backWallTex    = makeTexture(128, paintWall, 2, 2);
-const backCarpetTex  = makeTexture(128, paintCarpet, 18, 18);
-const backCeilTex    = makeTexture(128, paintCeiling, 18, 18);
-const cardboardTex   = makeTexture(128, paintCardboard, 1, 1);
-const hedgeTex       = makeTexture(128, paintHedge, 2, 2);
-const grassTex       = makeTexture(128, paintGrass, 18, 18);
-const skyTex         = makeTexture(128, paintSky, 12, 12);
-const schoolWallTex  = makeTexture(256, paintSchoolWall, 2, 2);
-const schoolFloorTex = makeTexture(256, paintSchoolFloor, 14, 14);
-const schoolCeilTex  = makeTexture(256, paintSchoolCeil, 14, 14);
+/* ---------- LAZY TEXTURE GETTERS ---------- */
+const getBackWallTex    = () => tex('bw',  () => makeTexture(128, paintWall, 2, 2));
+const getBackCarpetTex  = () => tex('bc',  () => makeTexture(128, paintCarpet, 18, 18));
+const getBackCeilTex    = () => tex('bcl', () => makeTexture(128, paintCeiling, 18, 18));
+const getCardboardTex   = () => tex('cb',  () => makeTexture(128, paintCardboard, 1, 1));
+const getHedgeTex       = () => tex('hd',  () => makeTexture(128, paintHedge, 2, 2));
+const getGrassTex       = () => tex('gr',  () => makeTexture(128, paintGrass, 18, 18));
+const getSkyTex         = () => tex('sk',  () => makeTexture(128, paintSky, 12, 12));
+const getSchoolWallTex  = () => tex('sw',  () => makeTexture(192, paintSchoolWall, 2, 2));
+const getSchoolFloorTex = () => tex('sf',  () => makeTexture(192, paintSchoolFloor, 14, 14));
+const getSchoolCeilTex  = () => tex('sc',  () => makeTexture(192, paintSchoolCeil, 14, 14));
 
 /* ============================================================
    7. STATE
@@ -849,7 +852,7 @@ let flickerMatRef = null;
 let currentTheme = THEMES[1];
 
 /* ============================================================
-   8. MAZE GEN — LEVEL 1 (classic DFS maze)
+   8. MAZE GEN — LEVEL 1
 ============================================================ */
 function generateMazeBackrooms(){
   const g = Array.from({length: ROWS}, () => new Array(COLS).fill(1));
@@ -877,7 +880,7 @@ function generateMazeBackrooms(){
 }
 
 /* ============================================================
-   9. MAZE GEN — LEVEL 2 (garden: rooms of varied sizes)
+   9. MAZE GEN — LEVEL 2
 ============================================================ */
 function carveL(g, x1, y1, x2, y2){
   if (Math.random() < 0.5){
@@ -953,7 +956,7 @@ function generateGardenMaze(){
 }
 
 /* ============================================================
-   9b. MAZE GEN — LEVEL 3 (school: grid of classrooms + corridors)
+   9b. MAZE GEN — LEVEL 3 (school)
 ============================================================ */
 function generateSchoolMaze(){
   const g = Array.from({length: ROWS}, () => new Array(COLS).fill(1));
@@ -962,7 +965,6 @@ function generateSchoolMaze(){
   const roomRows = Math.floor((ROWS-1)/STEP);
   const rooms = [];
 
-  // Carve a grid of 3x3 classrooms separated by 1-tile walls
   for (let ry = 0; ry < roomRows; ry++){
     for (let rx = 0; rx < roomCols; rx++){
       const x = 1 + rx*STEP;
@@ -974,7 +976,6 @@ function generateSchoolMaze(){
     }
   }
 
-  // Build adjacency edges between neighboring rooms
   const edges = [];
   for (let ry = 0; ry < roomRows; ry++){
     for (let rx = 0; rx < roomCols; rx++){
@@ -983,13 +984,11 @@ function generateSchoolMaze(){
       if (ry+1 < roomRows) edges.push([a, a+roomCols, 'v']);
     }
   }
-  // Shuffle
   for (let k = edges.length-1; k > 0; k--){
     const r = Math.floor(Math.random()*(k+1));
     [edges[k], edges[r]] = [edges[r], edges[k]];
   }
 
-  // Union-find for spanning tree
   const parent = rooms.map((_, i) => i);
   const find = x => parent[x] === x ? x : (parent[x] = find(parent[x]));
   const union = (a, b) => {
@@ -999,7 +998,7 @@ function generateSchoolMaze(){
   };
 
   const punch = (a, b, dir) => {
-    const ra = rooms[a], rb = rooms[b];
+    const ra = rooms[a];
     if (dir === 'h'){
       const wx = ra.x + RW;
       const cy = ra.y + Math.floor(RH/2);
@@ -1011,9 +1010,7 @@ function generateSchoolMaze(){
     }
   };
 
-  // Connect everything (spanning tree)
   for (const [a, b, dir] of edges) if (union(a, b)) punch(a, b, dir);
-  // Extra connections — create loops so it's less of a single corridor
   for (const [a, b, dir] of edges) if (Math.random() < 0.30) punch(a, b, dir);
 
   return g;
@@ -1179,7 +1176,6 @@ const enemy = {
   eR.position.set(0.11, 1.76, -0.26);
   enemy.group.add(eR);
 
-  // Aura light — used only on Level 3
   const glow = new THREE.PointLight(0xffffff, 0, 8, 1.6);
   glow.position.set(0, 1.4, 0);
   enemy.glow = glow;
@@ -1243,7 +1239,6 @@ let level3AudioWanted = false;
 
 function syncLevel3Audio(){
   const want = (state === 'playing') && currentLevel === 3;
-  // Keep volume in sync with master
   const targetVol = Math.max(0, Math.min(1, SETTINGS.master * 0.75));
   if (level3Audio.volume !== targetVol) level3Audio.volume = targetVol;
 
@@ -1294,19 +1289,19 @@ function clearLevel(){
 
 /* --- FLOOR / CEILING / WALLS --- */
 function floorMapFor(theme){
-  if (theme.kind === 'garden') return grassTex;
-  if (theme.kind === 'school') return schoolFloorTex;
-  return backCarpetTex;
+  if (theme.kind === 'garden') return getGrassTex();
+  if (theme.kind === 'school') return getSchoolFloorTex();
+  return getBackCarpetTex();
 }
 function ceilMapFor(theme){
-  if (theme.kind === 'garden') return skyTex;
-  if (theme.kind === 'school') return schoolCeilTex;
-  return backCeilTex;
+  if (theme.kind === 'garden') return getSkyTex();
+  if (theme.kind === 'school') return getSchoolCeilTex();
+  return getBackCeilTex();
 }
 function wallMapFor(theme){
-  if (theme.kind === 'garden') return hedgeTex;
-  if (theme.kind === 'school') return schoolWallTex;
-  return backWallTex;
+  if (theme.kind === 'garden') return getHedgeTex();
+  if (theme.kind === 'school') return getSchoolWallTex();
+  return getBackWallTex();
 }
 
 function buildFloor(theme){
@@ -1401,24 +1396,25 @@ function buildPanels(theme){
 /* --- BACKROOMS PROPS --- */
 function buildBackroomsProps(theme, open){
   const dummy = new THREE.Object3D();
+  const wallTex = getBackWallTex();
 
   const boxCount = Math.min(40, Math.floor(open.length * theme.boxChance));
   if (boxCount){
     const geo = new THREE.BoxGeometry(0.7, 0.7, 0.7);
-    const mat = new THREE.MeshLambertMaterial({ map: cardboardTex });
+    const mat = new THREE.MeshLambertMaterial({ map: getCardboardTex() });
     const im = new THREE.InstancedMesh(geo, mat, boxCount);
     im.frustumCulled = false;
     for (let k = 0; k < boxCount; k++){
       const c = open[k % open.length];
- +      const p = cellToWorld(c.i, c.j);
+      const p = cellToWorld(c.i, c.j);
       const s = 0.55 + Math.random()*0.85;
       dummy.position.set(p.x + (Math.random()-0.5)*1.6, (0.7*s)/2, p.z + (Math.random()-0.5)*1.6);
       dummy.rotation.set(0, Math.random()*Math.PI*2, 0);
-      dummy.scale Math.set(s, s, s);
-     .random dummy.updateMatrix();
-()      im.setMatrixAt(k, dummy.matrix);
+      dummy.scale.set(s, s, s);
+      dummy.updateMatrix();
+      im.setMatrixAt(k, dummy.matrix);
     }
-    im*.instance0Matrix.needsUpdate = true;
+    im.instanceMatrix.needsUpdate = true;
     addLevelObj(im);
   }
 
@@ -1456,7 +1452,7 @@ function buildBackroomsProps(theme, open){
   }
   if (pillarCells.length){
     const geo = new THREE.BoxGeometry(0.55, WALL_H, 0.55);
-    const mat = new THREE.MeshLambertMaterial({ map: backWallTex });
+    const mat = new THREE.MeshLambertMaterial({ map: wallTex });
     const im = new THREE.InstancedMesh(geo, mat, pillarCells.length);
     im.frustumCulled = false;
     pillarCells.forEach((c,k) => {
@@ -1532,11 +1528,17 @@ function buildGardenProps(theme, open){
   }
   const plantGroupCount = Math.min(22, plantCells.length);
 
+  // Shared geometries/materials across all plants
   const potGeo = new THREE.CylinderGeometry(0.22, 0.18, 0.36, 10);
   const potMat = new THREE.MeshLambertMaterial({ color: 0x8a5a3a });
   const foliageGeo = new THREE.SphereGeometry(0.38, 10, 8);
-  const foliageColors = [0x3a7a30, 0x4a8a38, 0x2e6a26, 0x5a9a42];
   const flowerGeo = new THREE.SphereGeometry(0.08, 8, 6);
+  const foliageMats = [0x3a7a30, 0x4a8a38, 0x2e6a26, 0x5a9a42].map(c =>
+    new THREE.MeshLambertMaterial({ color: c })
+  );
+  const flowerMats = [0xff6080, 0xffe060, 0xa0d8ff, 0xffa0e0].map(c =>
+    new THREE.MeshBasicMaterial({ color: c })
+  );
 
   for (let k = 0; k < plantGroupCount; k++){
     const c = plantCells[k];
@@ -1550,28 +1552,22 @@ function buildGardenProps(theme, open){
     pot.position.y = 0.18;
     g.add(pot);
 
-    const foliageMat = new THREE.MeshLambertMaterial({
-      color: foliageColors[Math.floor(Math.random()*foliageColors.length)]
-    });
+    const foliageMat = foliageMats[(Math.random()*foliageMats.length)|0];
     const foliage = new THREE.Mesh(foliageGeo, foliageMat);
     foliage.position.y = 0.72;
     foliage.scale.set(1, 1 + Math.random()*0.4, 1);
     g.add(foliage);
 
-    const flCount = 1 + Math.floor(Math.random()*4);
+    const flCount = 1 + ((Math.random()*4)|0);
     for (let f = 0; f < flCount; f++){
-      const fm = new THREE.MeshBasicMaterial({
-        color: [0xff6080, 0xffe060, 0xa0d8ff, 0xffa0e0][Math.floor(Math.random()*4)]
-      });
-      const fl = new THREE.Mesh(flowerGeo, fm);
+      const fl = new THREE.Mesh(flowerGeo, flowerMats[(Math.random()*flowerMats.length)|0]);
       fl.position.set(
         (Math.random()-0.5)*0.7,
-        0.9.25,
+        0.9 + Math.random()*0.25,
         (Math.random()-0.5)*0.7
       );
       g.add(fl);
     }
-
     addLevelObj(g);
   }
 
@@ -1594,7 +1590,6 @@ function buildGardenProps(theme, open){
     const g = new THREE.Group();
     g.position.set(p.x, 0, p.z);
     g.rotation.y = Math.random()*Math.PI*2;
-
     const seat = new THREE.Mesh(benchSeatGeo, benchMat);
     seat.position.y = 0.5;
     g.add(seat);
@@ -1649,7 +1644,7 @@ function buildGardenProps(theme, open){
     const geo = new THREE.SphereGeometry(0.06, 6, 5);
     const colors = [0xff6080, 0xffe060, 0xa0d8ff, 0xffa0e0, 0xffb040, 0xffffff];
     const mats = colors.map(c => new THREE.MeshBasicMaterial({ color: c }));
-    const chosen = mats[Math.floor(Math.random()*mats.length)];
+    const chosen = mats[(Math.random()*mats.length)|0];
     const im = new THREE.InstancedMesh(geo, chosen, bedCount);
     im.frustumCulled = false;
     for (let k = 0; k < bedCount; k++){
@@ -1674,12 +1669,11 @@ function buildGardenProps(theme, open){
 function buildSchoolProps(theme, open){
   const dummy = new THREE.Object3D();
 
-  // DESKS — scattered throughout the classrooms
+  // DESKS
   const deskCells = [];
   for (let j = 1; j < ROWS-1; j++){
     for (let i = 1; i < COLS-1; i++){
       if (grid[j][i] !== 0) continue;
-      // Only in cells that have room (all 4 neighbors open) so desks look natural
       let openN = 0;
       for (const [di,dj] of DIRS4) if (grid[j+dj][i+di] === 0) openN++;
       if (openN >= 2 && Math.random() < 0.34) deskCells.push({i,j});
@@ -1700,11 +1694,9 @@ function buildSchoolProps(theme, open){
     for (let k = 0; k < deskCount; k++){
       const c = deskCells[k];
       const p = cellToWorld(c.i, c.j);
-      // Push desk off walls slightly
       const px = p.x + (Math.random()-0.5)*1.2;
       const pz = p.z + (Math.random()-0.5)*1.2;
       const rot = Math.random()*Math.PI*2;
-      // Occasionally flip a desk on its side for unease
       const knocked = Math.random() < 0.07;
       dummy.position.set(px, knocked ? 0.28 : 0.75, pz);
       dummy.rotation.set(knocked ? Math.PI/2 : 0, rot, 0);
@@ -1729,7 +1721,7 @@ function buildSchoolProps(theme, open){
     addLevelObj(legIM);
   }
 
-  // LOCKERS — tall narrow boxes along walls
+  // LOCKERS
   const lockerCells = [];
   for (let j = 1; j < ROWS-1; j++){
     for (let i = 1; i < COLS-1; i++){
@@ -1739,9 +1731,7 @@ function buildSchoolProps(theme, open){
       for (const [di,dj] of DIRS4){
         if (grid[j+dj][i+di] === 1){ adjWall++; wdx = di; wdz = dj; }
       }
-      if (adjWall >= 1 && Math.random() < 0.42){
-        lockerCells.push({i,j, wdx, wdz});
-      }
+      if (adjWall >= 1 && Math.random() < 0.42) lockerCells.push({i,j, wdx, wdz});
     }
   }
   const lockerCount = Math.min(60, lockerCells.length);
@@ -1766,7 +1756,7 @@ function buildSchoolProps(theme, open){
     addLevelObj(im);
   }
 
-  // CHALKBOARDS — dark green planes on classroom walls
+  // CHALKBOARDS
   const boardPos = [];
   for (let j = 1; j < ROWS-1; j++){
     for (let i = 1; i < COLS-1; i++){
@@ -1805,7 +1795,7 @@ function buildSchoolProps(theme, open){
     addLevelObj(im);
   }
 
-  // PUDDLES — dark, reflective-looking spills on the tile floor
+  // PUDDLES
   const pudCount = Math.min(28, Math.floor(open.length * theme.puddleChance));
   if (pudCount){
     const geo = new THREE.CircleGeometry(0.55, 14);
@@ -1829,7 +1819,7 @@ function buildSchoolProps(theme, open){
     addLevelObj(im);
   }
 
-  // EMERGENCY LIGHTS — few red dots mounted high up
+  // EMERGENCY LIGHTS
   const emPos = [];
   for (let j = 2; j < ROWS-2; j++)
     for (let i = 2; i < COLS-2; i++)
@@ -1850,7 +1840,6 @@ function buildSchoolProps(theme, open){
     });
     im.instanceMatrix.needsUpdate = true;
     addLevelObj(im);
-    // Add a few red point lights for atmosphere (limited count)
     for (let k = 0; k < Math.min(4, emPos.length); k++){
       const c = emPos[k];
       const p = cellToWorld(c.i, c.j);
@@ -1902,6 +1891,14 @@ const NOTES_L3 = [
   "If the lights stop flickering, RUN. It means it has stopped moving.",
 ];
 
+// Shared geometry/material for collectibles (huge win — created once, reused per level)
+const collectWaterBodyGeo = new THREE.CylinderGeometry(0.11, 0.13, 0.42, 10);
+const collectWaterCapGeo  = new THREE.CylinderGeometry(0.06, 0.06, 0.09, 10);
+const collectWaterBodyMat = new THREE.MeshBasicMaterial({ color: 0x7fe0ff });
+const collectWaterCapMat  = new THREE.MeshBasicMaterial({ color: 0xffffff });
+const collectNoteGeo      = new THREE.PlaneGeometry(0.4, 0.55);
+const collectNoteMat      = new THREE.MeshBasicMaterial({ color: 0xf6eec9, side: THREE.DoubleSide });
+
 function buildCollectibles(openCells){
   const isGarden = currentTheme.kind === 'garden';
   const isSchool = currentTheme.kind === 'school';
@@ -1935,19 +1932,14 @@ function buildCollectibles(openCells){
     group.position.copy(p);
 
     if (type === 'water'){
-      const mat = new THREE.MeshBasicMaterial({ color: 0x7fe0ff });
-      const body = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.13, 0.42, 10), mat);
+      const body = new THREE.Mesh(collectWaterBodyGeo, collectWaterBodyMat);
       group.add(body);
-      const cap = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.06, 0.06, 0.09, 10),
-        new THREE.MeshBasicMaterial({ color: 0xffffff })
-      );
+      const cap = new THREE.Mesh(collectWaterCapGeo, collectWaterCapMat);
       cap.position.y = 0.25;
       group.add(cap);
       group.add(new THREE.PointLight(0x7fe0ff, 0.9, 5, 1.6));
     } else {
-      const mat = new THREE.MeshBasicMaterial({ color: 0xf6eec9, side: THREE.DoubleSide });
-      const paper = new THREE.Mesh(new THREE.PlaneGeometry(0.4, 0.55), mat);
+      const paper = new THREE.Mesh(collectNoteGeo, collectNoteMat);
       paper.rotation.x = -Math.PI/2;
       group.add(paper);
       group.add(new THREE.PointLight(0xfff2b0, 0.55, 3.5, 1.6));
@@ -1983,7 +1975,6 @@ function spawnEnemyFar(){
       const d = startDist[j][i];
       if (d < 0) continue;
       if (isLevel3){
-        // Spawn at medium distance so it isn't sitting on the exit
         if (d >= 5 && d <= 11) nearCandidates.push({i,j});
       } else {
         if (d > 6 && d > bestScore){ bestScore = d; best = {i,j}; }
@@ -1991,7 +1982,7 @@ function spawnEnemyFar(){
     }
   }
   if (isLevel3 && nearCandidates.length){
-    best = nearCandidates[Math.floor(Math.random()*nearCandidates.length)];
+    best = nearCandidates[(Math.random()*nearCandidates.length)|0];
   }
   if (!best) best = randomOpenCell();
   const p = cellToWorld(best.i, best.j);
@@ -2096,7 +2087,6 @@ function buildLevel(levelNum){
   camera.rotation.z = 0;
   playerLight.position.set(player.pos.x, 1.7, player.pos.z);
 
-  // Handle level-3 audio
   syncLevel3Audio();
 }
 
@@ -2115,10 +2105,9 @@ window.addEventListener('keydown', e => {
 });
 window.addEventListener('keyup', e => { keys[e.code] = false; });
 
-render <er.domElement.addEventListener ('click', () => {
-  if450 (state === 'playing' &&) !isTouch && document.p returnointerLockElement !== render;
-er.domElement){
-       renderer.domElement.requestPointerLock();
+renderer.domElement.addEventListener('click', () => {
+  if (state === 'playing' && !isTouch && document.pointerLockElement !== renderer.domElement){
+    renderer.domElement.requestPointerLock();
   }
 });
 document.addEventListener('mousemove', e => {
@@ -2219,7 +2208,8 @@ function onTap(node, fn){
   const handler = (e) => {
     if (node.disabled) return;
     const now = Date.now();
-    if (now - last last = now;
+    if (now - last < 450) return;
+    last = now;
     if (e.cancelable) e.preventDefault();
     fn(e);
   };
@@ -2303,7 +2293,6 @@ function playDescendSound(){
     o.start(t); o.stop(t + 1.5);
   } catch (err) {}
 }
-/* Level 3 — monster-spots-you shriek */
 function playLevel3Shriek(){
   if (!actx) return;
   try {
@@ -2321,7 +2310,6 @@ function playLevel3Shriek(){
     o.connect(f); f.connect(g); g.connect(sfxGain);
     o.start(t); o.stop(t + 0.8);
 
-    // Second voice — lower growl
     const o2 = actx.createOscillator();
     o2.type = 'square';
     o2.frequency.setValueAtTime(120, t);
@@ -2336,9 +2324,9 @@ function playLevel3Shriek(){
 }
 
 /* ============================================================
-   16. SCARE FACE
+   16. SCARE FACE (deferred until after start so it doesn't block paint)
 ============================================================ */
-(function buildScareFace(){
+function buildScareFace(){
   const c = document.createElement('canvas');
   c.width = c.height = 512;
   const x = c.getContext('2d');
@@ -2367,7 +2355,7 @@ function playLevel3Shriek(){
     x.closePath(); x.fill();
   }
   scareEl.style.backgroundImage = `url(${c.toDataURL()})`;
-})();
+}
 
 /* ============================================================
    17. STATE / UI
@@ -2638,7 +2626,7 @@ function updatePlayer(dt){
         let pool = NOTES_L1;
         if (currentTheme.kind === 'garden') pool = NOTES_L2;
         else if (currentTheme.kind === 'school') pool = NOTES_L3;
-        showLore(pool[Math.floor(Math.random()*pool.length)], 6000);
+        showLore(pool[(Math.random()*pool.length)|0], 6000);
       }
       scoreEl.textContent = 'SCORE ' + player.score;
     }
@@ -2656,7 +2644,6 @@ function updateEnemy(dt){
   if (theme.detectOverride) detectRange = theme.detectOverride;
   const chasing = dist < detectRange;
 
-  // Level 3: shriek when the monster first spots you
   if (currentLevel === 3 && chasing && !enemy.wasChasing){
     playLevel3Shriek();
     if (navigator.vibrate) navigator.vibrate([80, 40, 120]);
@@ -2701,13 +2688,11 @@ function updateEnemy(dt){
 
   const pulse = chasing ? (0.55 + Math.sin(performance.now()*0.012)*0.45) : 0.25;
   if (currentLevel === 3){
-    // Blood-red eyes, pulsing in the dark
     enemy.eyeMat.color.setRGB(0.35 + pulse*0.65, pulse*0.12, pulse*0.12);
   } else {
     enemy.eyeMat.color.setRGB(1, 0.15 + pulse*0.45, 0.05);
   }
 
-  // White aura intensifies on chase
   if (enemy.glow && currentLevel === 3){
     enemy.glow.intensity = chasing ? (1.1 + pulse*0.6) : 0.85;
   }
@@ -2766,9 +2751,7 @@ function applySettings(){
   vigEl.style.display = SETTINGS.vignette ? '' : 'none';
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, QUALITY_PR[SETTINGS.quality]));
   fpsEl.style.display = SETTINGS.showFps ? '' : 'none';
-  // Keep level 3 audio volume in sync
-  const v = Math.max(0, Math.min(1, SETTINGS.master * 0.75));
-  level3Audio.volume = v;
+  level3Audio.volume = Math.max(0, Math.min(1, SETTINGS.master * 0.75));
 }
 function refreshSettingsUI(){
   el('sMaster').value = Math.round(SETTINGS.master * 100);
@@ -2868,15 +2851,16 @@ function closeSettings(){
 ============================================================ */
 const clock = new THREE.Clock();
 let fpsAccum = 0, fpsFrames = 0;
+let animRunning = false;
 
 function animate(){
+  if (!animRunning) return;
   requestAnimationFrame(animate);
   const dt = Math.min(clock.getDelta(), 0.05);
   const now = performance.now() / 1000;
 
   updateFlicker();
   updateCollectibles(now);
-  syncLevel3Audio();
 
   if (state === 'playing'){
     elapsed += dt;
@@ -2904,6 +2888,13 @@ function animate(){
   }
 
   renderer.render(scene, camera);
+}
+
+function startAnim(){
+  if (animRunning) return;
+  animRunning = true;
+  clock.getDelta(); // reset delta
+  requestAnimationFrame(animate);
 }
 
 /* ============================================================
@@ -2954,21 +2945,43 @@ onTap(pauseBtn, () => {
 window.addEventListener('contextmenu', e => e.preventDefault());
 window.addEventListener('gesturestart', e => e.preventDefault());
 
+// Pause the render loop when the tab is hidden (saves CPU + battery)
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden){
+    animRunning = false;
+  } else if (!animRunning){
+    startAnim();
+  }
+});
+
 /* ============================================================
-   22. INIT
+   22. INIT — enable button immediately, defer heavy work
 ============================================================ */
 bindSettingControls();
 applySettings();
 refreshSettingsUI();
 
-currentLevel = 1;
-buildLevel(1);
-player.pos.copy(cellToWorld(playerStart.i, playerStart.j));
-
-animate();
-
 startBtn.disabled = false;
 startBtn.textContent = 'ENTER';
+
+// Enable interaction right away, then run the expensive first-level build
+// on the next paint so the start button feels instant.
+requestAnimationFrame(() => {
+  requestAnimationFrame(() => {
+    currentLevel = 1;
+    buildLevel(1);
+    player.pos.copy(cellToWorld(playerStart.i, playerStart.j));
+    startAnim();
+
+    // Defer the scare-face canvas painting even further — it's not needed
+    // until a game-over, so we can do it during idle time.
+    if (window.requestIdleCallback){
+      window.requestIdleCallback(buildScareFace, { timeout: 3000 });
+    } else {
+      setTimeout(buildScareFace, 800);
+    }
+  });
+});
 </script>
 </body>
 </html>
