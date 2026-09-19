@@ -1,0 +1,2437 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0a0906">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>THE BACKROOMS</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{
+    width:100%;height:100%;overflow:hidden;background:#000;
+    font-family:"Courier New",Courier,monospace;
+    user-select:none;-webkit-user-select:none;touch-action:none;
+    overscroll-behavior:none;position:fixed;
+  }
+  #game{position:fixed;inset:0;}
+  #game canvas{display:block;width:100%;height:100%;touch-action:none;}
+
+  #vignette{
+    position:fixed;inset:0;pointer-events:none;z-index:5;
+    background:radial-gradient(ellipse at center, rgba(0,0,0,0) 32%, rgba(0,0,0,.66) 100%);
+  }
+  #grain{
+    position:fixed;inset:0;pointer-events:none;z-index:6;opacity:.09;
+    background-image:repeating-linear-gradient(0deg, rgba(255,255,255,.5) 0px, rgba(255,255,255,.5) 1px, rgba(0,0,0,0) 1px, rgba(0,0,0,0) 3px);
+    animation:grain .5s steps(2) infinite;
+  }
+  @keyframes grain{
+    0%{transform:translate(0,0)} 25%{transform:translate(-2px,1px)}
+    50%{transform:translate(1px,-2px)} 75%{transform:translate(-1px,-1px)}
+    100%{transform:translate(2px,2px)}
+  }
+  #damageVig{
+    position:fixed;inset:0;pointer-events:none;z-index:7;
+    background:radial-gradient(ellipse at center, rgba(120,0,0,0) 30%, rgba(160,0,0,.55) 100%);
+    opacity:0;transition:opacity .25s;
+  }
+  #flashFx{
+    position:fixed;inset:0;pointer-events:none;z-index:8;
+    background:#ffffff;opacity:0;transition:opacity .35s;
+  }
+
+  #hud{position:fixed;inset:0;pointer-events:none;z-index:10;}
+  #timer{
+    position:absolute;top:calc(14px + env(safe-area-inset-top));left:calc(16px + env(safe-area-inset-left));
+    color:#e9dfae;font-size:15px;letter-spacing:2px;opacity:.78;
+    text-shadow:0 0 8px rgba(0,0,0,.9);
+  }
+  #levelTag{
+    position:absolute;top:calc(36px + env(safe-area-inset-top));left:calc(16px + env(safe-area-inset-left));
+    color:#e9dfae;font-size:12px;letter-spacing:3px;opacity:.85;
+    text-shadow:0 0 8px rgba(0,0,0,.9);
+  }
+  #score{
+    position:absolute;top:calc(56px + env(safe-area-inset-top));left:calc(16px + env(safe-area-inset-left));
+    color:#a6e0b2;font-size:12px;letter-spacing:2px;opacity:.85;
+    text-shadow:0 0 8px rgba(0,0,0,.9);
+  }
+  #staminaWrap{
+    position:absolute;bottom:calc(22px + env(safe-area-inset-bottom));left:50%;
+    transform:translateX(-50%);
+    width:180px;height:5px;background:rgba(0,0,0,.55);
+    border:1px solid rgba(255,255,255,.18);border-radius:3px;overflow:hidden;
+    opacity:.8;
+  }
+  #staminaFill{
+    height:100%;width:100%;background:linear-gradient(90deg,#c4e08a,#e8d974);
+    transition:background .2s;
+  }
+  #staminaFill.low{background:linear-gradient(90deg,#e08a6a,#c46a4a);}
+  #crosshair{
+    position:absolute;left:50%;top:50%;width:5px;height:5px;margin:-2.5px 0 0 -2.5px;
+    border-radius:50%;background:rgba(255,255,255,.45);
+    box-shadow:0 0 6px rgba(0,0,0,.8);
+  }
+  #hint{
+    position:absolute;left:0;right:0;bottom:calc(110px + env(safe-area-inset-bottom));
+    text-align:center;color:#e9dfae;font-size:14px;letter-spacing:2px;
+    opacity:0;transition:opacity 1.2s ease;text-shadow:0 0 10px rgba(0,0,0,.95);
+    padding:0 20px;
+  }
+  #hint.show{opacity:.9;}
+  #lore{
+    position:absolute;left:50%;bottom:calc(140px + env(safe-area-inset-bottom));
+    transform:translateX(-50%);
+    max-width:min(520px, 88vw);
+    color:#f4e9b8;font-size:13px;letter-spacing:1.4px;font-style:italic;
+    text-align:center;text-shadow:0 0 12px rgba(0,0,0,.95);
+    background:rgba(0,0,0,.35);padding:12px 18px;border-left:2px solid #ddcf90;
+    opacity:0;transition:opacity .4s;pointer-events:none;
+    line-height:1.5;
+  }
+  #lore.show{opacity:1;}
+
+  #mobileBtns{position:fixed;z-index:60;pointer-events:none;}
+  #mobileBtns.hidden{display:none;}
+  .mobtn{
+    position:fixed;pointer-events:auto;
+    width:60px;height:60px;border-radius:50%;
+    background:rgba(20,18,12,.55);border:1.5px solid rgba(233,223,174,.45);
+    color:#e9dfae;font-size:22px;font-family:inherit;
+    display:flex;align-items:center;justify-content:center;
+    backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);
+    transition:background .15s, transform .1s;
+    touch-action:none;
+  }
+  .mobtn:active{transform:scale(.92);background:rgba(50,45,25,.75);}
+  .mobtn.on{background:rgba(233,223,174,.32);color:#1a1608;border-color:#e9dfae;}
+  #flashBtn{right:calc(18px + env(safe-area-inset-right));bottom:calc(120px + env(safe-area-inset-bottom));}
+  #sprintBtn{right:calc(18px + env(safe-area-inset-right));bottom:calc(40px + env(safe-area-inset-bottom));font-size:26px;font-weight:bold;}
+  #pauseBtn{
+    position:fixed;top:calc(14px + env(safe-area-inset-top));right:calc(16px + env(safe-area-inset-right));
+    width:40px;height:40px;border-radius:50%;
+    background:rgba(20,18,12,.5);border:1px solid rgba(233,223,174,.35);
+    color:#e9dfae;font-size:15px;display:flex;align-items:center;justify-content:center;
+    pointer-events:auto;cursor:pointer;z-index:11;
+  }
+  #pauseBtn:active{transform:scale(.92);}
+
+  #joyBase{
+    position:fixed;width:130px;height:130px;margin-left:-65px;margin-top:-65px;
+    border-radius:50%;border:2px solid rgba(255,255,255,.22);
+    background:rgba(255,255,255,.05);display:none;pointer-events:none;z-index:50;
+  }
+  #joyKnob{
+    position:absolute;left:50%;top:50%;width:58px;height:58px;margin:-29px 0 0 -29px;
+    border-radius:50%;background:rgba(255,255,255,.28);
+    box-shadow:0 0 14px rgba(0,0,0,.5);
+  }
+
+  .screen{
+    position:fixed;inset:0;z-index:100;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;text-align:center;
+    padding:calc(24px + env(safe-area-inset-top)) 22px calc(24px + env(safe-area-inset-bottom));
+    background:radial-gradient(ellipse at 50% 42%, #2b2510 0%, #100e08 55%, #050403 100%);
+    color:#e8ddb0;
+    overflow-y:auto;-webkit-overflow-scrolling:touch;
+  }
+  .screen.hidden{display:none;}
+  .screen h1{
+    font-size:clamp(26px,8vw,58px);letter-spacing:clamp(3px,1.4vw,12px);
+    font-weight:700;color:#e6d99f;text-shadow:0 0 30px rgba(220,200,110,.35);
+    margin-bottom:8px;line-height:1.15;
+  }
+  .screen h2{
+    font-size:clamp(20px,6vw,36px);letter-spacing:6px;margin-bottom:14px;
+  }
+  .sub{font-size:12px;letter-spacing:3px;opacity:.6;margin-bottom:22px;}
+  .keys{
+    font-size:13px;line-height:2;letter-spacing:1.2px;opacity:.85;
+    max-width:430px;margin-bottom:24px;
+  }
+  .keys b{color:#f4e9b8;font-weight:700;}
+  .tiny{font-size:11px;letter-spacing:2px;opacity:.42;margin-top:18px;}
+  button{
+    font-family:inherit;font-size:15px;letter-spacing:4px;padding:14px 40px;
+    color:#12100a;background:#ddcf90;border:none;border-radius:2px;
+    cursor:pointer;transition:transform .12s ease, background .2s ease;
+    box-shadow:0 0 24px rgba(220,200,120,.25);
+    touch-action:manipulation;
+    min-width:190px;
+  }
+  button:disabled{opacity:.5;cursor:default;}
+  button:not(:disabled):hover{background:#f0e2a2;}
+  button:not(:disabled):active{transform:scale(.96);}
+  button.ghost{
+    background:transparent;color:#e8ddb0;
+    border:1px solid rgba(233,223,174,.5);
+    box-shadow:none;font-size:13px;padding:11px 30px;min-width:150px;
+    margin-top:10px;letter-spacing:3px;
+  }
+  button.ghost:hover{background:rgba(233,223,174,.08);color:#f4e9b8;}
+
+  #settingsScreen{z-index:150;}
+  #settingsScreen .settings-list{
+    width:min(430px, 92vw);
+    text-align:left;
+    margin-bottom:14px;
+  }
+  .setting{
+    padding:11px 0;
+    border-bottom:1px solid rgba(233,223,174,.1);
+  }
+  .setting:last-child{border-bottom:none;}
+  .setting-row{
+    display:flex;justify-content:space-between;align-items:center;
+    margin-bottom:8px;font-size:12.5px;letter-spacing:1.6px;color:#e8ddb0;
+  }
+  .setting-row .val{color:#f4e9b8;font-size:12px;opacity:.85;}
+  .setting input[type=range]{
+    width:100%;height:6px;-webkit-appearance:none;appearance:none;
+    background:rgba(255,255,255,.12);border-radius:3px;outline:none;
+    touch-action:manipulation;
+  }
+  .setting input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none;appearance:none;
+    width:20px;height:20px;border-radius:50%;
+    background:#ddcf90;cursor:pointer;border:2px solid #12100a;
+    box-shadow:0 0 8px rgba(220,200,120,.5);
+  }
+  .setting input[type=range]::-moz-range-thumb{
+    width:20px;height:20px;border-radius:50%;
+    background:#ddcf90;cursor:pointer;border:2px solid #12100a;
+    box-shadow:0 0 8px rgba(220,200,120,.5);
+  }
+  .seg{
+    display:flex;gap:0;border:1px solid rgba(233,223,174,.3);border-radius:2px;
+    overflow:hidden;
+  }
+  .seg button{
+    flex:1;min-width:0;padding:8px 4px;font-size:11px;
+    letter-spacing:1.5px;
+    background:transparent;color:#c9c0a0;border:none;border-radius:0;
+    box-shadow:none;
+  }
+  .seg button.active{background:#ddcf90;color:#12100a;}
+  .seg button:hover:not(.active){background:rgba(233,223,174,.08);}
+  .toggle{
+    padding:6px 16px;font-size:11px;letter-spacing:2px;min-width:66px;
+    background:rgba(255,255,255,.08);color:#c9c0a0;
+    border:1px solid rgba(233,223,174,.3);
+    box-shadow:none;
+  }
+  .toggle.on{background:#ddcf90;color:#12100a;border-color:#ddcf90;}
+
+  #scare{
+    position:fixed;inset:0;z-index:200;display:none;
+    background-size:cover;background-position:center;
+    animation:scareShake .07s infinite;
+  }
+  #scare.on{display:block;}
+  @keyframes scareShake{
+    0%{transform:translate(0,0) scale(1.04)}
+    25%{transform:translate(-6px,4px) scale(1.05)}
+    50%{transform:translate(5px,-5px) scale(1.04)}
+    75%{transform:translate(-4px,-3px) scale(1.06)}
+    100%{transform:translate(6px,3px) scale(1.05)}
+  }
+
+  #endScreen{z-index:120;}
+  #endScreen.win h2{color:#7cf0b0;text-shadow:0 0 26px rgba(80,255,160,.4);}
+  #endScreen.lose h2{color:#ff5a4a;text-shadow:0 0 26px rgba(255,60,40,.4);}
+
+  #levelScreen{
+    z-index:140;
+    background:radial-gradient(ellipse at 50% 42%, #103018 0%, #060a05 60%, #020301 100%);
+  }
+  #levelScreen h2{color:#7cf0b0;text-shadow:0 0 30px rgba(80,255,160,.45);}
+  #levelScreen .sub{color:#a6e0b2;}
+
+  #loadError{
+    position:fixed;inset:0;z-index:300;display:none;
+    align-items:center;justify-content:center;text-align:center;
+    background:#0a0906;color:#e8ddb0;padding:30px;
+    font-size:14px;letter-spacing:1.5px;line-height:1.8;
+  }
+  #loadError.on{display:flex;}
+
+  #fps{
+    position:absolute;top:calc(78px + env(safe-area-inset-top));left:calc(16px + env(safe-area-inset-left));
+    color:#a6e0b2;font-size:11px;letter-spacing:1.5px;opacity:.6;
+    text-shadow:0 0 6px rgba(0,0,0,.9);
+  }
+</style>
+</head>
+<body>
+
+<div id="game"></div>
+<div id="vignette"></div>
+<div id="grain"></div>
+<div id="damageVig"></div>
+<div id="flashFx"></div>
+
+<div id="hud">
+  <div id="timer">00:00</div>
+  <div id="levelTag">LEVEL 1</div>
+  <div id="score">SCORE 0</div>
+  <div id="fps"></div>
+  <div id="crosshair"></div>
+  <div id="hint"></div>
+  <div id="lore"></div>
+  <div id="staminaWrap"><div id="staminaFill"></div></div>
+</div>
+
+<div id="pauseBtn">❚❚</div>
+
+<div id="mobileBtns" class="hidden">
+  <button class="mobtn" id="flashBtn" aria-label="Flashlight">◉</button>
+  <button class="mobtn" id="sprintBtn" aria-label="Sprint">»</button>
+</div>
+
+<div id="joyBase"><div id="joyKnob"></div></div>
+<div id="scare"></div>
+
+<div id="startScreen" class="screen">
+  <h1>THE BACKROOMS</h1>
+  <p class="sub">YOU NOCLIPPED OUT OF REALITY</p>
+  <div class="keys" id="ctrlText"></div>
+  <button id="startBtn" disabled>LOADING…</button>
+  <button class="ghost" id="openSettings1">SETTINGS</button>
+  <p class="tiny">TWO LEVELS · RANDOM MAZES · NO TWO RUNS ALIKE</p>
+</div>
+
+<div id="pauseScreen" class="screen hidden">
+  <h2>PAUSED</h2>
+  <p class="sub">TAKE A BREATH</p>
+  <button id="resumeBtn">RESUME</button>
+  <button class="ghost" id="openSettings2">SETTINGS</button>
+  <button class="ghost" id="quitBtn">QUIT</button>
+</div>
+
+<div id="settingsScreen" class="screen hidden">
+  <h2>SETTINGS</h2>
+  <div class="settings-list">
+    <div class="setting">
+      <div class="setting-row"><label>Master Volume</label><span class="val" id="vMaster">70%</span></div>
+      <input type="range" id="sMaster" min="0" max="100" value="70">
+    </div>
+    <div class="setting">
+      <div class="setting-row"><label>SFX Volume</label><span class="val" id="vSfx">80%</span></div>
+      <input type="range" id="sSfx" min="0" max="100" value="80">
+    </div>
+    <div class="setting">
+      <div class="setting-row"><label>Mouse Sensitivity</label><span class="val" id="vSens">100%</span></div>
+      <input type="range" id="sSens" min="20" max="250" value="100">
+    </div>
+    <div class="setting">
+      <div class="setting-row"><label>Touch Sensitivity</label><span class="val" id="vTouchSens">100%</span></div>
+      <input type="range" id="sTouchSens" min="20" max="250" value="100">
+    </div>
+    <div class="setting">
+      <div class="setting-row"><label>Field of View</label><span class="val" id="vFov">76°</span></div>
+      <input type="range" id="sFov" min="60" max="100" value="76">
+    </div>
+    <div class="setting">
+      <div class="setting-row"><label>Difficulty</label><span class="val" id="vDiff">Normal</span></div>
+      <div class="seg" id="sDiff">
+        <button data-v="0">EASY</button>
+        <button data-v="1" class="active">NORMAL</button>
+        <button data-v="2">NIGHTMARE</button>
+      </div>
+    </div>
+    <div class="setting">
+      <div class="setting-row"><label>Quality</label><span class="val" id="vQual">High</span></div>
+      <div class="seg" id="sQual">
+        <button data-v="0">LOW</button>
+        <button data-v="1">MED</button>
+        <button data-v="2" class="active">HIGH</button>
+        <button data-v="3">ULTRA</button>
+      </div>
+    </div>
+    <div class="setting">
+      <div class="setting-row"><label>Head Bob</label><button class="toggle on" id="sHeadBob">ON</button></div>
+    </div>
+    <div class="setting">
+      <div class="setting-row"><label>Film Grain</label><button class="toggle on" id="sGrain">ON</button></div>
+    </div>
+    <div class="setting">
+      <div class="setting-row"><label>Vignette</label><button class="toggle on" id="sVig">ON</button></div>
+    </div>
+    <div class="setting">
+      <div class="setting-row"><label>Show FPS</label><button class="toggle" id="sFps">OFF</button></div>
+    </div>
+  </div>
+  <button id="settingsBack">BACK</button>
+</div>
+
+<div id="levelScreen" class="screen hidden">
+  <h2 id="levelTitle">LEVEL CLEARED</h2>
+  <p class="sub" id="levelMsg">You found the exit. Something worse waits below.</p>
+  <button id="nextLevelBtn">DESCEND</button>
+</div>
+
+<div id="endScreen" class="screen hidden">
+  <h2 id="endTitle">—</h2>
+  <p class="sub" id="endMsg">—</p>
+  <button id="againBtn">AGAIN</button>
+  <button class="ghost" id="menuBtn">MAIN MENU</button>
+</div>
+
+<div id="loadError">
+  <div>COULD NOT LOAD THE ENGINE.<br>CHECK YOUR CONNECTION AND RELOAD.</div>
+</div>
+
+<script type="module">
+/* ============================================================
+   0. LOAD THREE.JS
+============================================================ */
+const startBtn = document.getElementById('startBtn');
+const isTouch = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
+
+document.getElementById('ctrlText').innerHTML = isTouch
+  ? `LEFT SIDE — <b>DRAG TO MOVE</b><br>RIGHT SIDE — <b>DRAG TO LOOK</b><br>BUTTONS — <b>FLASHLIGHT / SPRINT</b>`
+  : `<b>W A S D</b> — MOVE &nbsp;·&nbsp; <b>MOUSE</b> — LOOK<br><b>SHIFT</b> — SPRINT &nbsp;·&nbsp; <b>F</b> — FLASHLIGHT &nbsp;·&nbsp; <b>ESC</b> — PAUSE`;
+
+const CDNS = [
+  'https://unpkg.com/three@0.160.0/build/three.module.js',
+  'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js',
+  'https://esm.sh/three@0.160.0',
+  'https://cdn.skypack.dev/three@0.160.0'
+];
+
+let THREE = null;
+for (const url of CDNS){
+  try {
+    THREE = await Promise.race([
+      import(/* @vite-ignore */ url),
+      new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 11000))
+    ]);
+    if (THREE && THREE.WebGLRenderer) break;
+    THREE = null;
+  } catch (e){ THREE = null; }
+}
+
+if (!THREE){
+  document.getElementById('loadError').classList.add('on');
+  startBtn.textContent = 'ERROR';
+  throw new Error('Three.js could not be loaded');
+}
+
+/* ============================================================
+   1. SETTINGS
+============================================================ */
+const SETTINGS_KEY = 'backrooms_settings_v4';
+const DEFAULTS = {
+  master: 0.7, sfx: 0.8,
+  sens: 1.0, touchSens: 1.0,
+  fov: 76, diff: 1, quality: 2,
+  headBob: true, grain: true, vignette: true, showFps: false
+};
+const SETTINGS = { ...DEFAULTS };
+try {
+  const saved = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}');
+  Object.assign(SETTINGS, saved);
+} catch (e){}
+function saveSettings(){
+  try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(SETTINGS)); } catch (e){}
+}
+
+const QUALITY_PR = [0.75, 1.0, 1.5, 2.0];
+const QUALITY_LABEL = ['LOW','MED','HIGH','ULTRA'];
+const DIFF_LABEL = ['EASY','NORMAL','NIGHTMARE'];
+
+const DIFF = [
+  { wander: 1.10, chase: 3.00, detect: 11 },
+  { wander: 1.35, chase: 3.65, detect: 15 },
+  { wander: 1.65, chase: 4.35, detect: 19 },
+];
+
+/* ============================================================
+   2. THEMES (Level 1 = Backrooms, Level 2 = Garden)
+============================================================ */
+const THEMES = {
+  1: {
+    name: 'LEVEL 1 — THE BACKROOMS',
+    kind: 'backrooms',
+    fog: 0xc7bd7c, fogNear: 2.5, fogFar: 27,
+    ambient: 0xfff2c0, ambientI: 0.95,
+    hemiSky: 0xfff6cc, hemiGround: 0x6b5c2a, hemiI: 0.6,
+    panelColor: 0xfff6cf,
+    flickerOn: [1.0, 0.965, 0.81], flickerOff: [0.15, 0.14, 0.1],
+    panelChance: 0.45, flickerChance: 0.22, emergChance: 0.12,
+    boxChance: 0.28, puddleChance: 0.22,
+    extraOpenChance: 0.15,
+    enemySpeedMult: 1.0,
+    exitColor: 0x2bff9a, exitLight: 0x3affa0,
+    tagColor: '#e9dfae'
+  },
+  2: {
+    name: 'LEVEL 2 — THE GARDEN',
+    kind: 'garden',
+    fog: 0xa8c8a0, fogNear: 5.0, fogFar: 38,
+    ambient: 0xfff6d8, ambientI: 1.05,
+    hemiSky: 0xdcf0c0, hemiGround: 0x4e7a42, hemiI: 0.95,
+    panelColor: 0xfff8d8,
+    flickerOn: [1.0, 1.0, 0.92], flickerOff: [0.7, 0.85, 0.6],
+    panelChance: 0.42, flickerChance: 0.05, emergChance: 0.02,
+    boxChance: 0.06, puddleChance: 0.30,
+    extraOpenChance: 0.0,
+    enemySpeedMult: 1.10,
+    exitColor: 0xffd84a, exitLight: 0xffd84a,
+    tagColor: '#b8f0a0'
+  }
+};
+
+/* ============================================================
+   3. CONFIG
+============================================================ */
+const COLS = 17, ROWS = 17;
+const CELL = 4;
+const WALL_H = 3.0;
+const WORLD_W = COLS * CELL, WORLD_D = ROWS * CELL;
+const DIRS4 = [[1,0],[-1,0],[0,1],[0,-1]];
+
+/* ============================================================
+   4. DOM
+============================================================ */
+const el = id => document.getElementById(id);
+const startScreen    = el('startScreen');
+const pauseScreen    = el('pauseScreen');
+const endScreen      = el('endScreen');
+const settingsScreen = el('settingsScreen');
+const levelScreen    = el('levelScreen');
+const endTitle       = el('endTitle');
+const endMsg         = el('endMsg');
+const levelTitle     = el('levelTitle');
+const levelMsg       = el('levelMsg');
+const timerEl        = el('timer');
+const levelTag       = el('levelTag');
+const scoreEl        = el('score');
+const fpsEl          = el('fps');
+const hintEl         = el('hint');
+const loreEl         = el('lore');
+const joyBase        = el('joyBase');
+const joyKnob        = el('joyKnob');
+const scareEl        = el('scare');
+const againBtn       = el('againBtn');
+const menuBtn        = el('menuBtn');
+const nextLevelBtn   = el('nextLevelBtn');
+const staminaFill    = el('staminaFill');
+const damageVig      = el('damageVig');
+const flashFx        = el('flashFx');
+const mobileBtns     = el('mobileBtns');
+const flashBtn       = el('flashBtn');
+const sprintBtn      = el('sprintBtn');
+const pauseBtn       = el('pauseBtn');
+const grainEl        = el('grain');
+const vigEl          = el('vignette');
+
+if (isTouch) mobileBtns.classList.remove('hidden');
+
+/* ============================================================
+   5. TEXTURES — BACKROOMS
+============================================================ */
+function makeTexture(size, painter, rx = 1, ry = 1){
+  const c = document.createElement('canvas');
+  c.width = c.height = size;
+  painter(c.getContext('2d'), size);
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.repeat.set(rx, ry);
+  t.anisotropy = 4;
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+function paintWall(ctx, s){
+  ctx.fillStyle = '#d9cc86'; ctx.fillRect(0,0,s,s);
+  for (let x = 0; x < s; x += 10){
+    ctx.fillStyle = `rgba(178,164,96,${0.05+Math.random()*0.06})`;
+    ctx.fillRect(x,0,5,s);
+  }
+  for (let i = 0; i < 6; i++){
+    const x = Math.random()*s, w = 4 + Math.random()*12;
+    const h = 30 + Math.random()*80;
+    const g = ctx.createLinearGradient(0,0,0,h);
+    g.addColorStop(0,'rgba(110,92,42,0.22)');
+    g.addColorStop(1,'rgba(110,92,42,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(x, 0, w, h);
+  }
+  for (let i = 0; i < s*s*0.25; i++){
+    ctx.fillStyle = `rgba(${110+Math.random()*70|0},${100+Math.random()*60|0},${55+Math.random()*35|0},0.07)`;
+    ctx.fillRect(Math.random()*s, Math.random()*s, 2, 2);
+  }
+  for (let i = 0; i < 16; i++){
+    const x = Math.random()*s, y = Math.random()*s, r = 10+Math.random()*50;
+    const g = ctx.createRadialGradient(x,y,0,x,y,r);
+    g.addColorStop(0,'rgba(120,100,48,0.13)');
+    g.addColorStop(1,'rgba(120,100,48,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(x,y,r,0,7); ctx.fill();
+  }
+}
+function paintCarpet(ctx, s){
+  ctx.fillStyle = '#b6a15e'; ctx.fillRect(0,0,s,s);
+  for (let i = 0; i < s*s*0.9; i++){
+    const v = Math.random();
+    ctx.fillStyle = v > 0.5
+      ? `rgba(150,132,72,${0.10+Math.random()*0.16})`
+      : `rgba(206,190,128,${0.08+Math.random()*0.14})`;
+    ctx.fillRect(Math.random()*s, Math.random()*s, 2, 2);
+  }
+  for (let i = 0; i < 14; i++){
+    const x = Math.random()*s, y = Math.random()*s, r = 15+Math.random()*55;
+    const g = ctx.createRadialGradient(x,y,0,x,y,r);
+    g.addColorStop(0,'rgba(90,74,32,0.16)');
+    g.addColorStop(1,'rgba(90,74,32,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(x,y,r,0,7); ctx.fill();
+  }
+}
+function paintCeiling(ctx, s){
+  ctx.fillStyle = '#ded6ad'; ctx.fillRect(0,0,s,s);
+  for (let i = 0; i < s*s*0.35; i++){
+    ctx.fillStyle = `rgba(${150+Math.random()*60|0},${145+Math.random()*55|0},${110+Math.random()*40|0},0.10)`;
+    ctx.fillRect(Math.random()*s, Math.random()*s, 3, 3);
+  }
+  for (let i = 0; i < 5; i++){
+    const x = Math.random()*s, y = Math.random()*s, r = 18+Math.random()*40;
+    const g = ctx.createRadialGradient(x,y,0,x,y,r);
+    g.addColorStop(0,'rgba(120,98,44,0.20)');
+    g.addColorStop(0.7,'rgba(120,98,44,0.08)');
+    g.addColorStop(1,'rgba(120,98,44,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(x,y,r,0,7); ctx.fill();
+  }
+  ctx.strokeStyle = 'rgba(150,140,100,0.35)';
+  ctx.lineWidth = 2; ctx.strokeRect(0,0,s,s);
+}
+function paintCardboard(ctx, s){
+  ctx.fillStyle = '#a07842'; ctx.fillRect(0,0,s,s);
+  for (let i = 0; i < s*s*0.6; i++){
+    const v = Math.random();
+    ctx.fillStyle = v > 0.5
+      ? `rgba(140,102,52,${0.10+Math.random()*0.18})`
+      : `rgba(190,150,86,${0.08+Math.random()*0.12})`;
+    ctx.fillRect(Math.random()*s, Math.random()*s, 2, 2);
+  }
+  ctx.strokeStyle = 'rgba(210,190,140,0.5)';
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.moveTo(0, s/2); ctx.lineTo(s, s/2);
+  ctx.stroke();
+}
+
+/* ============================================================
+   6. TEXTURES — GARDEN
+============================================================ */
+function paintHedge(ctx, s){
+  ctx.fillStyle = '#245820'; ctx.fillRect(0,0,s,s);
+  // Leafy clusters
+  for (let i = 0; i < 240; i++){
+    const x = Math.random()*s, y = Math.random()*s;
+    const r = 3 + Math.random()*8;
+    const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+    const v = Math.random();
+    if (v > 0.66){
+      g.addColorStop(0, 'rgba(120,180,90,0.55)');
+      g.addColorStop(1, 'rgba(120,180,90,0)');
+    } else if (v > 0.33){
+      g.addColorStop(0, 'rgba(60,110,45,0.55)');
+      g.addColorStop(1, 'rgba(60,110,45,0)');
+    } else {
+      g.addColorStop(0, 'rgba(20,50,15,0.65)');
+      g.addColorStop(1, 'rgba(20,50,15,0)');
+    }
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(x,y,r,0,7); ctx.fill();
+  }
+  // Highlight sparkles
+  for (let i = 0; i < 90; i++){
+    ctx.fillStyle = `rgba(190,230,140,${0.2+Math.random()*0.35})`;
+    ctx.fillRect(Math.random()*s, Math.random()*s, 1.5, 1.5);
+  }
+}
+function paintGrass(ctx, s){
+  ctx.fillStyle = '#4a7a3a'; ctx.fillRect(0,0,s,s);
+  for (let i = 0; i < s*s*1.4; i++){
+    const x = Math.random()*s, y = Math.random()*s;
+    const v = Math.random();
+    if (v > 0.94){
+      ctx.fillStyle = `rgba(230,190,90,${0.4+Math.random()*0.4})`; // tiny flowers
+    } else if (v > 0.5){
+      ctx.fillStyle = `rgba(90,150,65,${0.3+Math.random()*0.3})`;
+    } else {
+      ctx.fillStyle = `rgba(35,75,25,${0.25+Math.random()*0.25})`;
+    }
+    ctx.fillRect(x, y, 1.2, 1.2);
+  }
+  for (let i = 0; i < 12; i++){
+    const x = Math.random()*s, y = Math.random()*s, r = 15+Math.random()*50;
+    const g = ctx.createRadialGradient(x,y,0,x,y,r);
+    g.addColorStop(0, 'rgba(30,60,25,0.18)');
+    g.addColorStop(1, 'rgba(30,60,25,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(x,y,r,0,7); ctx.fill();
+  }
+}
+function paintSky(ctx, s){
+  ctx.fillStyle = '#c4dcf0'; ctx.fillRect(0,0,s,s);
+  // Soft clouds
+  for (let i = 0; i < 10; i++){
+    const x = Math.random()*s, y = Math.random()*s;
+    const r = 22 + Math.random()*44;
+    const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+    g.addColorStop(0, 'rgba(255,255,255,0.75)');
+    g.addColorStop(0.6, 'rgba(255,255,255,0.3)');
+    g.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill();
+  }
+  // Warm sunlight tint
+  const warm = ctx.createLinearGradient(0, 0, 0, s);
+  warm.addColorStop(0, 'rgba(255,240,200,0.15)');
+  warm.addColorStop(1, 'rgba(255,240,200,0)');
+  ctx.fillStyle = warm; ctx.fillRect(0,0,s,s);
+}
+
+const backWallTex    = makeTexture(128, paintWall, 2, 2);
+const backCarpetTex  = makeTexture(128, paintCarpet, 18, 18);
+const backCeilTex    = makeTexture(128, paintCeiling, 18, 18);
+const cardboardTex   = makeTexture(128, paintCardboard, 1, 1);
+const hedgeTex       = makeTexture(128, paintHedge, 2, 2);
+const grassTex       = makeTexture(128, paintGrass, 18, 18);
+const skyTex         = makeTexture(128, paintSky, 12, 12);
+
+/* ============================================================
+   7. STATE
+============================================================ */
+let grid = null;
+let startDist = null;
+let exitCell = { i: 1, j: 1 };
+const exitPos = new THREE.Vector3();
+let playerStart = { i: 1, j: 1 };
+let currentLevel = 1;
+const MAX_LEVEL = 2;
+let levelObjects = [];
+let collectibles = [];
+let flickerMatRef = null;
+let currentTheme = THEMES[1];
+
+/* ============================================================
+   8. MAZE GEN — LEVEL 1 (classic DFS maze)
+============================================================ */
+function generateMazeBackrooms(){
+  const g = Array.from({length: ROWS}, () => new Array(COLS).fill(1));
+  const stack = [[1,1]];
+  g[1][1] = 0;
+  while (stack.length){
+    const [x,y] = stack[stack.length-1];
+    const dirs = DIRS4.map(d => [d[0]*2, d[1]*2]).sort(() => Math.random()-0.5);
+    let moved = false;
+    for (const [dx,dy] of dirs){
+      const nx = x+dx, ny = y+dy;
+      if (nx>0 && ny>0 && nx<COLS-1 && ny<ROWS-1 && g[ny][nx]===1){
+        g[ny][nx] = 0;
+        g[y+dy/2][x+dx/2] = 0;
+        stack.push([nx,ny]);
+        moved = true; break;
+      }
+    }
+    if (!moved) stack.pop();
+  }
+  for (let j = 1; j < ROWS-1; j++)
+    for (let i = 1; i < COLS-1; i++)
+      if (g[j][i] === 1 && Math.random() < THEMES[1].extraOpenChance) g[j][i] = 0;
+  return g;
+}
+
+/* ============================================================
+   9. MAZE GEN — LEVEL 2 (garden: rooms of varied sizes)
+============================================================ */
+function carveL(g, x1, y1, x2, y2){
+  if (Math.random() < 0.5){
+    for (let x = Math.min(x1,x2); x <= Math.max(x1,x2); x++)
+      if (x >= 1 && x < COLS-1 && y1 >= 1 && y1 < ROWS-1) g[y1][x] = 0;
+    for (let y = Math.min(y1,y2); y <= Math.max(y1,y2); y++)
+      if (x2 >= 1 && x2 < COLS-1 && y >= 1 && y < ROWS-1) g[y][x2] = 0;
+  } else {
+    for (let y = Math.min(y1,y2); y <= Math.max(y1,y2); y++)
+      if (x1 >= 1 && x1 < COLS-1 && y >= 1 && y < ROWS-1) g[y][x1] = 0;
+    for (let x = Math.min(x1,x2); x <= Math.max(x1,x2); x++)
+      if (x >= 1 && x < COLS-1 && y2 >= 1 && y2 < ROWS-1) g[y2][x] = 0;
+  }
+}
+
+function generateGardenMaze(){
+  const g = Array.from({length: ROWS}, () => new Array(COLS).fill(1));
+  const rooms = [];
+  const maxAttempts = 140;
+
+  // Mix of room sizes: small corridors, medium rooms, big halls
+  for (let a = 0; a < maxAttempts && rooms.length < 11; a++){
+    // Choose room size class
+    const roll = Math.random();
+    let w, h;
+    if (roll < 0.30){
+      // tiny corridor-like (2x2 or 2x3)
+      w = 2; h = Math.random() < 0.5 ? 2 : 3;
+    } else if (roll < 0.70){
+      // medium (3x3 to 4x4)
+      w = 3 + Math.floor(Math.random()*2);
+      h = 3 + Math.floor(Math.random()*2);
+    } else {
+      // big hall (5x4 to 6x5)
+      w = 5 + Math.floor(Math.random()*2);
+      h = 4 + Math.floor(Math.random()*2);
+    }
+    if (w > COLS-2 || h > ROWS-2) continue;
+
+    const x = 1 + Math.floor(Math.random() * (COLS - w - 2));
+    const y = 1 + Math.floor(Math.random() * (ROWS - h - 2));
+    const newRoom = { x, y, w, h };
+
+    // 1-cell buffer between rooms
+    let overlaps = false;
+    for (const r of rooms){
+      if (!(newRoom.x + newRoom.w + 1 <= r.x ||
+            r.x + r.w + 1 <= newRoom.x ||
+            newRoom.y + newRoom.h + 1 <= r.y ||
+            r.y + r.h + 1 <= newRoom.y)){
+        overlaps = true; break;
+      }
+    }
+    if (overlaps) continue;
+
+    // Carve interior
+    for (let j = y; j < y + h; j++)
+      for (let i = x; i < x + w; i++)
+        g[j][i] = 0;
+
+    rooms.push(newRoom);
+  }
+
+  // Fallback if no rooms placed
+  if (rooms.length === 0){
+    for (let j = 2; j < 8; j++)
+      for (let i = 2; i < 8; i++)
+        g[j][i] = 0;
+    rooms.push({ x:2, y:2, w:6, h:6 });
+  }
+
+  const cx = r => r.x + Math.floor(r.w/2);
+  const cy = r => r.y + Math.floor(r.h/2);
+
+  // Connect rooms in a chain
+  for (let k = 1; k < rooms.length; k++){
+    carveL(g, cx(rooms[k-1]), cy(rooms[k-1]), cx(rooms[k]), cy(rooms[k]));
+  }
+  // Extra connections → loops
+  const extras = 3 + Math.floor(Math.random()*4);
+  for (let e = 0; e < extras; e++){
+    const r1 = rooms[Math.floor(Math.random()*rooms.length)];
+    const r2 = rooms[Math.floor(Math.random()*rooms.length)];
+    if (r1 === r2) continue;
+    carveL(g, cx(r1), cy(r1), cx(r2), cy(r2));
+  }
+
+  return g;
+}
+
+function generateMazeForLevel(levelNum){
+  return levelNum >= 2 ? generateGardenMaze() : generateMazeBackrooms();
+}
+
+/* ============================================================
+   10. WORLD HELPERS
+============================================================ */
+function cellToWorld(i,j){
+  return new THREE.Vector3((i-(COLS-1)/2)*CELL, 0, (j-(ROWS-1)/2)*CELL);
+}
+function worldToCell(x,z){
+  let i = Math.round(x/CELL + (COLS-1)/2);
+  let j = Math.round(z/CELL + (ROWS-1)/2);
+  return { i: Math.max(0,Math.min(COLS-1,i)), j: Math.max(0,Math.min(ROWS-1,j)) };
+}
+function isWallAt(x,z){ const c = worldToCell(x,z); return grid[c.j][c.i] === 1; }
+function blockedAt(x,z,r){
+  return isWallAt(x-r,z-r)||isWallAt(x+r,z-r)||isWallAt(x-r,z+r)||isWallAt(x+r,z+r);
+}
+function randomOpenCell(){
+  const cells = [];
+  for (let j = 1; j < ROWS-1; j++)
+    for (let i = 1; i < COLS-1; i++)
+      if (grid[j][i] === 0) cells.push({i,j});
+  if (!cells.length) return {i:1,j:1};
+  return cells[Math.floor(Math.random()*cells.length)];
+}
+function bfsDistances(si,sj){
+  const dist = Array.from({length: ROWS}, () => new Array(COLS).fill(-1));
+  if (grid[sj][si] === 1) return dist;
+  dist[sj][si] = 0;
+  const q = [[si,sj]];
+  for (let h = 0; h < q.length; h++){
+    const [i,j] = q[h];
+    for (const [di,dj] of DIRS4){
+      const ni = i+di, nj = j+dj;
+      if (ni<0||nj<0||ni>=COLS||nj>=ROWS) continue;
+      if (grid[nj][ni] === 1 || dist[nj][ni] >= 0) continue;
+      dist[nj][ni] = dist[j][i]+1;
+      q.push([ni,nj]);
+    }
+  }
+  return dist;
+}
+function bfsStep(si,sj,gi,gj){
+  if (si===gi && sj===gj) return null;
+  const W = COLS, N = COLS*ROWS;
+  const prev = new Int32Array(N).fill(-1);
+  const seen = new Uint8Array(N);
+  const startKey = si+sj*W, goalKey = gi+gj*W;
+  const q = [startKey]; seen[startKey] = 1;
+  let found = false;
+  for (let h = 0; h < q.length; h++){
+    const cur = q[h];
+    if (cur === goalKey){ found = true; break; }
+    const ci = cur % W, cj = (cur / W) | 0;
+    for (const [di,dj] of DIRS4){
+      const ni = ci+di, nj = cj+dj;
+      if (ni<0||nj<0||ni>=COLS||nj>=ROWS) continue;
+      const nk = ni+nj*W;
+      if (seen[nk] || grid[nj][ni] === 1) continue;
+      seen[nk] = 1; prev[nk] = cur; q.push(nk);
+    }
+  }
+  if (!found) return null;
+  let cur = goalKey;
+  while (prev[cur] !== -1 && prev[cur] !== startKey) cur = prev[cur];
+  if (prev[cur] === -1) return null;
+  return { i: cur % W, j: (cur / W) | 0 };
+}
+
+/* ============================================================
+   11. RENDERER / SCENE
+============================================================ */
+let renderer;
+try {
+  renderer = new THREE.WebGLRenderer({
+    antialias: !isTouch,
+    powerPreference: 'high-performance'
+  });
+} catch (e){
+  document.getElementById('loadError').classList.add('on');
+  throw e;
+}
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+el('game').appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(SETTINGS.fov, window.innerWidth/window.innerHeight, 0.08, 90);
+camera.rotation.order = 'YXZ';
+scene.add(camera);
+
+const ambientLight = new THREE.AmbientLight(0xfff2c0, 0.95);
+scene.add(ambientLight);
+const hemi = new THREE.HemisphereLight(0xfff6cc, 0x6b5c2a, 0.6);
+scene.add(hemi);
+
+const playerLight = new THREE.PointLight(0xffeaa0, 0.55, 17, 0);
+scene.add(playerLight);
+
+const flashlight = new THREE.SpotLight(0xfff2c0, 0, 14, Math.PI/6, 0.55, 1.2);
+flashlight.position.set(0, 0, 0);
+flashlight.target.position.set(0, 0, -1);
+camera.add(flashlight);
+camera.add(flashlight.target);
+let flashlightOn = false;
+let flashlightIntensity = 0;
+
+const exitGroup = new THREE.Group();
+const exitMat = new THREE.MeshBasicMaterial({
+  color: 0x2bff9a, transparent: true, opacity: 0.5,
+  side: THREE.DoubleSide, depthWrite: false
+});
+const exitPlane = new THREE.Mesh(new THREE.PlaneGeometry(1.7, 2.5), exitMat);
+exitPlane.position.y = 1.3;
+exitGroup.add(exitPlane);
+const exitLight = new THREE.PointLight(0x3affa0, 1.6, 22, 0);
+exitLight.position.y = 1.6;
+exitGroup.add(exitLight);
+scene.add(exitGroup);
+
+/* enemy */
+const enemy = {
+  pos: new THREE.Vector3(),
+  next: null,
+  pathTimer: 0,
+  wanderTarget: null,
+  group: new THREE.Group(),
+  eyeMat: null,
+  chasing: false
+};
+(function buildEnemy(){
+  const dark = new THREE.MeshLambertMaterial({ color: 0x121109 });
+  const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.36, 1.05, 4, 10), dark);
+  body.position.y = 0.9;
+  enemy.group.add(body);
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.3, 12, 10), dark);
+  head.position.y = 1.72;
+  enemy.group.add(head);
+  const armL = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.95, 0.15), dark);
+  armL.position.set(-0.42, 1.0, 0);
+  enemy.group.add(armL);
+  const armR = armL.clone(); armR.position.x = 0.42;
+  enemy.group.add(armR);
+  enemy.eyeMat = new THREE.MeshBasicMaterial({ color: 0xff5533 });
+  const eyeGeo = new THREE.SphereGeometry(0.055, 8, 6);
+  const eL = new THREE.Mesh(eyeGeo, enemy.eyeMat);
+  eL.position.set(-0.11, 1.76, -0.26);
+  enemy.group.add(eL);
+  const eR = new THREE.Mesh(eyeGeo, enemy.eyeMat);
+  eR.position.set(0.11, 1.76, -0.26);
+  enemy.group.add(eR);
+})();
+scene.add(enemy.group);
+
+/* ============================================================
+   12. PLAYER
+============================================================ */
+const player = {
+  pos: new THREE.Vector3(),
+  radius: 0.55,
+  bobPhase: 0,
+  bobAmount: 0,
+  stamina: 100,
+  maxStamina: 100,
+  staminaDrain: 24,
+  staminaRegen: 13,
+  sprinting: false,
+  score: 0,
+};
+
+let yaw = 0, pitch = 0;
+let state = 'menu';
+let elapsed = 0;
+let settingsReturn = 'menu';
+let sprintTouch = false;
+let transitionLock = false;
+
+/* ============================================================
+   13. LEVEL BUILD / CLEAR
+============================================================ */
+function addLevelObj(obj){
+  scene.add(obj);
+  levelObjects.push(obj);
+  return obj;
+}
+function disposeObject(obj){
+  if (!obj) return;
+  obj.traverse?.(child => {
+    if (child.geometry && !child.geometry.userData?.shared) child.geometry.dispose?.();
+    if (child.material){
+      const mats = Array.isArray(child.material) ? child.material : [child.material];
+      for (const m of mats) if (m && !m.userData?.shared) m.dispose?.();
+    }
+  });
+  if (obj.dispose) obj.dispose();
+}
+function clearLevel(){
+  for (const obj of levelObjects){
+    scene.remove(obj);
+    try { disposeObject(obj); } catch (e){}
+  }
+  levelObjects = [];
+  for (const c of collectibles){
+    scene.remove(c.group);
+    try { disposeObject(c.group); } catch (e){}
+  }
+  collectibles = [];
+  flickerMatRef = null;
+}
+
+/* --- FLOOR / CEILING / WALLS --- */
+function buildFloor(theme){
+  const map = theme.kind === 'garden' ? grassTex : backCarpetTex;
+  const mat = new THREE.MeshLambertMaterial({ map });
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(WORLD_W, WORLD_D), mat);
+  m.rotation.x = -Math.PI/2;
+  addLevelObj(m);
+}
+function buildCeiling(theme){
+  const map = theme.kind === 'garden' ? skyTex : backCeilTex;
+  const mat = new THREE.MeshLambertMaterial({ map });
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(WORLD_W, WORLD_D), mat);
+  m.rotation.x = Math.PI/2;
+  m.position.y = WALL_H;
+  addLevelObj(m);
+}
+function buildWalls(theme){
+  let wallCount = 0;
+  for (let j = 0; j < ROWS; j++)
+    for (let i = 0; i < COLS; i++)
+      if (grid[j][i] === 1) wallCount++;
+  if (!wallCount) return;
+
+  const map = theme.kind === 'garden' ? hedgeTex : backWallTex;
+  const geo = new THREE.BoxGeometry(CELL, WALL_H, CELL);
+  const mat = new THREE.MeshLambertMaterial({ map });
+  const walls = new THREE.InstancedMesh(geo, mat, wallCount);
+  walls.frustumCulled = false;
+
+  const dummy = new THREE.Object3D();
+  const col = new THREE.Color();
+  let wi = 0;
+  for (let j = 0; j < ROWS; j++){
+    for (let i = 0; i < COLS; i++){
+      if (grid[j][i] !== 1) continue;
+      const p = cellToWorld(i,j);
+      dummy.position.set(p.x, WALL_H/2, p.z);
+      dummy.rotation.set(0,0,0);
+      dummy.scale.set(1,1,1);
+      dummy.updateMatrix();
+      walls.setMatrixAt(wi, dummy.matrix);
+      const v = 0.85 + Math.random()*0.22;
+      col.setRGB(v, v * (theme.kind === 'garden' ? 0.98 : 0.99), v * 0.92);
+      walls.setColorAt(wi, col);
+      wi++;
+    }
+  }
+  walls.instanceMatrix.needsUpdate = true;
+  if (walls.instanceColor) walls.instanceColor.needsUpdate = true;
+  addLevelObj(walls);
+}
+function buildPanels(theme){
+  const stable = [];
+  const flicker = [];
+  for (let j = 1; j < ROWS-1; j++){
+    for (let i = 1; i < COLS-1; i++){
+      if (grid[j][i] === 0 && Math.random() < theme.panelChance){
+        const p = cellToWorld(i,j);
+        if (Math.random() < theme.flickerChance) flicker.push(p);
+        else stable.push(p);
+      }
+    }
+  }
+  const panelGeo = new THREE.PlaneGeometry(2.4, 1.2);
+  panelGeo.rotateX(Math.PI/2);
+
+  const dummy = new THREE.Object3D();
+  function makeIM(positions, mat){
+    if (!positions.length) return null;
+    const im = new THREE.InstancedMesh(panelGeo, mat, positions.length);
+    im.frustumCulled = false;
+    positions.forEach((p,k) => {
+      dummy.position.set(p.x, WALL_H-0.03, p.z);
+      dummy.rotation.set(0, Math.random() < 0.5 ? 0 : Math.PI/2, 0);
+      dummy.scale.set(1,1,1);
+      dummy.updateMatrix();
+      im.setMatrixAt(k, dummy.matrix);
+    });
+    im.instanceMatrix.needsUpdate = true;
+    return im;
+  }
+  const stableMat = new THREE.MeshBasicMaterial({ color: theme.panelColor });
+  const im1 = makeIM(stable, stableMat);
+  if (im1) addLevelObj(im1);
+  const flickerMat = new THREE.MeshBasicMaterial({ color: theme.panelColor });
+  flickerMatRef = flickerMat;
+  const im2 = makeIM(flicker, flickerMat);
+  if (im2) addLevelObj(im2);
+}
+
+/* --- BACKROOMS PROPS --- */
+function buildBackroomsProps(theme, open){
+  const dummy = new THREE.Object3D();
+
+  const boxCount = Math.min(40, Math.floor(open.length * theme.boxChance));
+  if (boxCount){
+    const geo = new THREE.BoxGeometry(0.7, 0.7, 0.7);
+    const mat = new THREE.MeshLambertMaterial({ map: cardboardTex });
+    const im = new THREE.InstancedMesh(geo, mat, boxCount);
+    im.frustumCulled = false;
+    for (let k = 0; k < boxCount; k++){
+      const c = open[k % open.length];
+      const p = cellToWorld(c.i, c.j);
+      const s = 0.55 + Math.random()*0.85;
+      dummy.position.set(p.x + (Math.random()-0.5)*1.6, (0.7*s)/2, p.z + (Math.random()-0.5)*1.6);
+      dummy.rotation.set(0, Math.random()*Math.PI*2, 0);
+      dummy.scale.set(s, s, s);
+      dummy.updateMatrix();
+      im.setMatrixAt(k, dummy.matrix);
+    }
+    im.instanceMatrix.needsUpdate = true;
+    addLevelObj(im);
+  }
+
+  const pudCount = Math.min(30, Math.floor(open.length * theme.puddleChance));
+  if (pudCount){
+    const geo = new THREE.CircleGeometry(0.65, 14);
+    geo.rotateX(-Math.PI/2);
+    const mat = new THREE.MeshBasicMaterial({
+      color: 0x1c180d, transparent: true, opacity: 0.6, depthWrite: false
+    });
+    const im = new THREE.InstancedMesh(geo, mat, pudCount);
+    im.frustumCulled = false;
+    for (let k = 0; k < pudCount; k++){
+      const c = open[(k*5) % open.length];
+      const p = cellToWorld(c.i, c.j);
+      dummy.position.set(p.x + (Math.random()-0.5)*1.8, 0.02, p.z + (Math.random()-0.5)*1.8);
+      dummy.rotation.set(0, Math.random()*Math.PI*2, 0);
+      const s = 0.6 + Math.random()*1.1;
+      dummy.scale.set(s, s, 1);
+      dummy.updateMatrix();
+      im.setMatrixAt(k, dummy.matrix);
+    }
+    im.instanceMatrix.needsUpdate = true;
+    addLevelObj(im);
+  }
+
+  // Pillars
+  const pillarCells = [];
+  for (let j = 1; j < ROWS-1; j++){
+    for (let i = 1; i < COLS-1; i++){
+      if (grid[j][i] !== 0) continue;
+      let n = 0;
+      for (const [di,dj] of DIRS4) if (grid[j+dj][i+di] === 0) n++;
+      if (n >= 3 && Math.random() < 0.32) pillarCells.push({i,j});
+    }
+  }
+  if (pillarCells.length){
+    const geo = new THREE.BoxGeometry(0.55, WALL_H, 0.55);
+    const mat = new THREE.MeshLambertMaterial({ map: backWallTex });
+    const im = new THREE.InstancedMesh(geo, mat, pillarCells.length);
+    im.frustumCulled = false;
+    pillarCells.forEach((c,k) => {
+      const p = cellToWorld(c.i, c.j);
+      dummy.position.set(p.x, WALL_H/2, p.z);
+      dummy.rotation.set(0,0,0);
+      dummy.scale.set(1,1,1);
+      dummy.updateMatrix();
+      im.setMatrixAt(k, dummy.matrix);
+    });
+    im.instanceMatrix.needsUpdate = true;
+    addLevelObj(im);
+  }
+
+  // Emergency lights
+  const emPos = [];
+  for (let j = 1; j < ROWS-1; j++)
+    for (let i = 1; i < COLS-1; i++)
+      if (grid[j][i] === 0 && Math.random() < theme.emergChance) emPos.push({i,j});
+  if (emPos.length){
+    const geo = new THREE.BoxGeometry(0.12, 0.24, 0.08);
+    const mat = new THREE.MeshBasicMaterial({ color: 0xff2a1a });
+    const im = new THREE.InstancedMesh(geo, mat, emPos.length);
+    im.frustumCulled = false;
+    emPos.forEach((c,k) => {
+      const p = cellToWorld(c.i, c.j);
+      const [di, dj] = DIRS4[Math.floor(Math.random()*4)];
+      dummy.position.set(p.x + di*1.9, 2.4, p.z + dj*1.9);
+      dummy.rotation.set(0,0,0);
+      dummy.scale.set(1,1,1);
+      dummy.updateMatrix();
+      im.setMatrixAt(k, dummy.matrix);
+    });
+    im.instanceMatrix.needsUpdate = true;
+    addLevelObj(im);
+  }
+}
+
+/* --- GARDEN PROPS --- */
+function buildGardenProps(theme, open){
+  const dummy = new THREE.Object3D();
+
+  // Stone path puddles (water features) using pale blue circles
+  const waterCount = Math.min(24, Math.floor(open.length * theme.puddleChance));
+  if (waterCount){
+    const geo = new THREE.CircleGeometry(0.7, 18);
+    geo.rotateX(-Math.PI/2);
+    const mat = new THREE.MeshBasicMaterial({
+      color: 0x6da8c8, transparent: true, opacity: 0.55, depthWrite: false
+    });
+    const im = new THREE.InstancedMesh(geo, mat, waterCount);
+    im.frustumCulled = false;
+    for (let k = 0; k < waterCount; k++){
+      const c = open[(k*3) % open.length];
+      const p = cellToWorld(c.i, c.j);
+      dummy.position.set(p.x + (Math.random()-0.5)*1.6, 0.02, p.z + (Math.random()-0.5)*1.6);
+      dummy.rotation.set(0, Math.random()*Math.PI*2, 0);
+      const s = 0.6 + Math.random()*0.9;
+      dummy.scale.set(s, s, 1);
+      dummy.updateMatrix();
+      im.setMatrixAt(k, dummy.matrix);
+    }
+    im.instanceMatrix.needsUpdate = true;
+    addLevelObj(im);
+  }
+
+  // Potted plants: many along walls
+  const plantCells = [];
+  for (let j = 1; j < ROWS-1; j++){
+    for (let i = 1; i < COLS-1; i++){
+      if (grid[j][i] !== 0) continue;
+      // Prefer cells adjacent to walls
+      let adjWall = 0;
+      for (const [di,dj] of DIRS4) if (grid[j+dj][i+di] === 1) adjWall++;
+      if (adjWall >= 1 && Math.random() < 0.45) plantCells.push({i,j, adjWall});
+    }
+  }
+  const plantGroupCount = Math.min(22, plantCells.length);
+
+  // Pot shared geometry/material
+  const potGeo = new THREE.CylinderGeometry(0.22, 0.18, 0.36, 10);
+  const potMat = new THREE.MeshLambertMaterial({ color: 0x8a5a3a });
+  const foliageGeo = new THREE.SphereGeometry(0.38, 10, 8);
+  const foliageColors = [0x3a7a30, 0x4a8a38, 0x2e6a26, 0x5a9a42];
+  const flowerGeo = new THREE.SphereGeometry(0.08, 8, 6);
+
+  for (let k = 0; k < plantGroupCount; k++){
+    const c = plantCells[k];
+    const p = cellToWorld(c.i, c.j);
+    const g = new THREE.Group();
+    // Random offset near wall
+    p.x += (Math.random()-0.5) * 1.4;
+    p.z += (Math.random()-0.5) * 1.4;
+    g.position.set(p.x, 0, p.z);
+
+    const pot = new THREE.Mesh(potGeo, potMat);
+    pot.position.y = 0.18;
+    g.add(pot);
+
+    const foliageMat = new THREE.MeshLambertMaterial({
+      color: foliageColors[Math.floor(Math.random()*foliageColors.length)]
+    });
+    const foliage = new THREE.Mesh(foliageGeo, foliageMat);
+    foliage.position.y = 0.72;
+    foliage.scale.set(1, 1 + Math.random()*0.4, 1);
+    g.add(foliage);
+
+    // Random flower dots
+    const flCount = 1 + Math.floor(Math.random()*4);
+    for (let f = 0; f < flCount; f++){
+      const fm = new THREE.MeshBasicMaterial({
+        color: [0xff6080, 0xffe060, 0xa0d8ff, 0xffa0e0][Math.floor(Math.random()*4)]
+      });
+      const fl = new THREE.Mesh(flowerGeo, fm);
+      fl.position.set(
+        (Math.random()-0.5)*0.7,
+        0.9 + Math.random()*0.25,
+        (Math.random()-0.5)*0.7
+      );
+      g.add(fl);
+    }
+
+    addLevelObj(g);
+  }
+
+  // Benches
+  const benchCells = [];
+  for (let j = 2; j < ROWS-2; j++){
+    for (let i = 2; i < COLS-2; i++){
+      if (grid[j][i] !== 0) continue;
+      // Clear all 4 corners
+      if (grid[j][i+1]===0 && grid[j][i-1]===0 && grid[j+1][i]===0 && grid[j-1][i]===0){
+        if (Math.random() < 0.20) benchCells.push({i,j});
+      }
+    }
+  }
+  const benchCount = Math.min(8, benchCells.length);
+  const benchSeatGeo = new THREE.BoxGeometry(1.6, 0.12, 0.5);
+  const benchLegGeo = new THREE.BoxGeometry(0.1, 0.42, 0.42);
+  const benchMat = new THREE.MeshLambertMaterial({ color: 0x6a4a2a });
+  for (let k = 0; k < benchCount; k++){
+    const c = benchCells[k];
+    const p = cellToWorld(c.i, c.j);
+    const g = new THREE.Group();
+    g.position.set(p.x, 0, p.z);
+    g.rotation.y = Math.random()*Math.PI*2;
+
+    const seat = new THREE.Mesh(benchSeatGeo, benchMat);
+    seat.position.y = 0.5;
+    g.add(seat);
+    for (const dx of [-0.6, 0.6]){
+      const leg = new THREE.Mesh(benchLegGeo, benchMat);
+      leg.position.set(dx, 0.24, 0);
+      g.add(leg);
+    }
+    addLevelObj(g);
+  }
+
+  // Small fountains (center of big rooms)
+  const fountainCells = [];
+  for (let j = 3; j < ROWS-3; j++){
+    for (let i = 3; i < COLS-3; i++){
+      if (grid[j][i] !== 0) continue;
+      let allOpen = true;
+      for (let jj = j-1; jj <= j+1 && allOpen; jj++)
+        for (let ii = i-1; ii <= i+1 && allOpen; ii++)
+          if (grid[jj][ii] !== 0) allOpen = false;
+      if (allOpen && Math.random() < 0.15) fountainCells.push({i,j});
+    }
+  }
+  const fountainCount = Math.min(4, fountainCells.length);
+  const fBaseGeo = new THREE.CylinderGeometry(0.75, 0.85, 0.4, 16);
+  const fBaseMat = new THREE.MeshLambertMaterial({ color: 0x9a9a90 });
+  const fWaterGeo = new THREE.CylinderGeometry(0.62, 0.62, 0.14, 16);
+  const fWaterMat = new THREE.MeshBasicMaterial({ color: 0x6dc0e8 });
+  const fPillarGeo = new THREE.CylinderGeometry(0.14, 0.2, 0.9, 10);
+  const fPillarMat = new THREE.MeshLambertMaterial({ color: 0x8a8a80 });
+  for (let k = 0; k < fountainCount; k++){
+    const c = fountainCells[k];
+    const p = cellToWorld(c.i, c.j);
+    const g = new THREE.Group();
+    g.position.set(p.x, 0, p.z);
+    const base = new THREE.Mesh(fBaseGeo, fBaseMat);
+    base.position.y = 0.2;
+    g.add(base);
+    const water = new THREE.Mesh(fWaterGeo, fWaterMat);
+    water.position.y = 0.4;
+    g.add(water);
+    const pillar = new THREE.Mesh(fPillarGeo, fPillarMat);
+    pillar.position.y = 0.85;
+    g.add(pillar);
+    // Water glow
+    const wl = new THREE.PointLight(0x6dc0e8, 0.35, 4, 1.6);
+    wl.position.y = 0.6;
+    g.add(wl);
+    addLevelObj(g);
+  }
+
+  // Flower beds: colorful instanced dots along open ground
+  const bedCount = Math.min(60, Math.floor(open.length * 0.35));
+  if (bedCount){
+    const geo = new THREE.SphereGeometry(0.06, 6, 5);
+    const colors = [0xff6080, 0xffe060, 0xa0d8ff, 0xffa0e0, 0xffb040, 0xffffff];
+    const mats = colors.map(c => new THREE.MeshBasicMaterial({ color: c }));
+    // Choose a few materials
+    const chosen = mats[Math.floor(Math.random()*mats.length)];
+    const im = new THREE.InstancedMesh(geo, chosen, bedCount);
+    im.frustumCulled = false;
+    for (let k = 0; k < bedCount; k++){
+      const c = open[(k*7) % open.length];
+      const p = cellToWorld(c.i, c.j);
+      dummy.position.set(
+        p.x + (Math.random()-0.5)*3.2,
+        0.05,
+        p.z + (Math.random()-0.5)*3.2
+      );
+      dummy.rotation.set(0,0,0);
+      dummy.scale.set(1,1,1);
+      dummy.updateMatrix();
+      im.setMatrixAt(k, dummy.matrix);
+    }
+    im.instanceMatrix.needsUpdate = true;
+    addLevelObj(im);
+  }
+}
+
+/* --- COLLECTIBLES --- */
+const NOTES_L1 = [
+  "DAY 4 — The hum never stops. I've stopped counting the yellow rooms.",
+  "I found a door today. It led back to the same hallway. Again.",
+  "If you hear footsteps, don't run. Walk. It likes it when you run.",
+  "The almond water tastes like static. I keep drinking it anyway.",
+  "Someone was here before me. Their name was carved into the wall.",
+  "The lights flicker when it's near. Count the flickers.",
+  "I no longer remember what the sun looked like.",
+  "Level 0 is not the beginning. It is the resting place.",
+  "Don't look at the ceiling. It reflects things that aren't there.",
+  "If you find the exit, tell them I'm still walking.",
+  "The carpet is wet again. It rained last night, I think.",
+  "I saw a door that opened into the same room I was standing in.",
+];
+const NOTES_L2 = [
+  "THE GARDEN — The hedges moved when I wasn't looking. They are taller now.",
+  "The fountains are warm. Not hot. Warm, like breath.",
+  "A bench here was occupied. I sat beside nothing and it felt rude.",
+  "Flowers bloom where I walk. I don't plant them.",
+  "The sun has no source. It simply is.",
+  "I counted seven rooms today. Or perhaps one room, seven times.",
+  "The grass remembers being something else. So do I.",
+  "Don't step in the water. It shows you things.",
+  "The gardener is still here. You will not see them. They will see you.",
+];
+
+function buildCollectibles(openCells){
+  const isGarden = currentTheme.kind === 'garden';
+  const waterCount = isGarden ? 7 : 5;
+  const noteCount  = isGarden ? 8 : 6;
+  const used = new Set();
+  const waterCells = [];
+  const noteCells = [];
+
+  const sorted = [...openCells].sort((a,b) => {
+    const da = startDist[a.j]?.[a.i] ?? 0;
+    const db = startDist[b.j]?.[b.i] ?? 0;
+    return db - da;
+  });
+  for (const c of sorted){
+    if (waterCells.length >= waterCount && noteCells.length >= noteCount) break;
+    const key = c.i + ',' + c.j;
+    if (used.has(key)) continue;
+    if (startDist[c.j][c.i] < 2) continue;
+    used.add(key);
+    if (waterCells.length < waterCount) waterCells.push(c);
+    else if (noteCells.length < noteCount) noteCells.push(c);
+  }
+
+  const addOne = (type, c) => {
+    const group = new THREE.Group();
+    const p = cellToWorld(c.i, c.j);
+    p.x += (Math.random()-0.5)*0.6;
+    p.z += (Math.random()-0.5)*0.6;
+    p.y = 0.85;
+    group.position.copy(p);
+
+    if (type === 'water'){
+      const mat = new THREE.MeshBasicMaterial({ color: 0x7fe0ff });
+      const body = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.13, 0.42, 10), mat);
+      group.add(body);
+      const cap = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.06, 0.06, 0.09, 10),
+        new THREE.MeshBasicMaterial({ color: 0xffffff })
+      );
+      cap.position.y = 0.25;
+      group.add(cap);
+      group.add(new THREE.PointLight(0x7fe0ff, 0.9, 5, 1.6));
+    } else {
+      const mat = new THREE.MeshBasicMaterial({ color: 0xf6eec9, side: THREE.DoubleSide });
+      const paper = new THREE.Mesh(new THREE.PlaneGeometry(0.4, 0.55), mat);
+      paper.rotation.x = -Math.PI/2;
+      group.add(paper);
+      group.add(new THREE.PointLight(0xfff2b0, 0.55, 3.5, 1.6));
+    }
+    scene.add(group);
+    collectibles.push({
+      type, group,
+      pos: group.position.clone(),
+      collected: false,
+      baseY: 0.85,
+      phase: Math.random()*Math.PI*2,
+      radius: 1.2
+    });
+  };
+  for (const c of waterCells) addOne('water', c);
+  for (const c of noteCells)  addOne('note', c);
+}
+
+function buildExit(theme){
+  exitGroup.position.copy(exitPos);
+  exitGroup.position.y = 0;
+  exitGroup.visible = true;
+  exitMat.color.setHex(theme.exitColor);
+  exitLight.color.setHex(theme.exitLight);
+}
+
+function spawnEnemyFar(){
+  let best = null, bestScore = -1;
+  for (let j = 1; j < ROWS-1; j++){
+    for (let i = 1; i < COLS-1; i++){
+      const d = startDist[j][i];
+      if (d > 6 && d > bestScore){ bestScore = d; best = {i,j}; }
+    }
+  }
+  if (!best) best = randomOpenCell();
+  const p = cellToWorld(best.i, best.j);
+  enemy.pos.copy(p);
+  enemy.group.position.copy(p);
+  enemy.next = null;
+  enemy.pathTimer = 0;
+  enemy.wanderTarget = null;
+  enemy.chasing = false;
+}
+
+function buildLevel(levelNum){
+  clearLevel();
+  currentLevel = levelNum;
+  const theme = THEMES[levelNum] || THEMES[1];
+  currentTheme = theme;
+
+  // Theme
+  scene.background = new THREE.Color(theme.fog);
+  scene.fog = new THREE.Fog(theme.fog, theme.fogNear, theme.fogFar);
+  ambientLight.color.setHex(theme.ambient);
+  ambientLight.intensity = theme.ambientI;
+  hemi.color.setHex(theme.hemiSky);
+  hemi.groundColor.setHex(theme.hemiGround);
+  hemi.intensity = theme.hemiI;
+
+  // Maze
+  grid = generateMazeForLevel(levelNum);
+
+  // Random start
+  playerStart = randomOpenCell();
+  startDist = bfsDistances(playerStart.i, playerStart.j);
+
+  // Random exit = farthest reachable cell from start
+  exitCell = { ...playerStart };
+  let bestD = -1;
+  for (let j = 1; j < ROWS-1; j++){
+    for (let i = 1; i < COLS-1; i++){
+      if (startDist[j][i] > bestD){
+        bestD = startDist[j][i];
+        exitCell = { i, j };
+      }
+    }
+  }
+  const ep = cellToWorld(exitCell.i, exitCell.j);
+  exitPos.copy(ep);
+
+  // Geometry
+  buildFloor(theme);
+  buildCeiling(theme);
+  buildWalls(theme);
+  buildPanels(theme);
+
+  // Props — choose based on theme kind
+  const open = [];
+  for (let j = 1; j < ROWS-1; j++)
+    for (let i = 1; i < COLS-1; i++)
+      if (grid[j][i] === 0 &&
+          !(i === playerStart.i && j === playerStart.j) &&
+          !(i === exitCell.i && j === exitCell.j))
+        open.push({i,j});
+  for (let k = open.length-1; k > 0; k--){
+    const r = Math.floor(Math.random()*(k+1));
+    [open[k], open[r]] = [open[r], open[k]];
+  }
+
+  if (theme.kind === 'garden') buildGardenProps(theme, open);
+  else buildBackroomsProps(theme, open);
+
+  buildCollectibles(open);
+  buildExit(theme);
+
+  // Player
+  player.pos.copy(cellToWorld(playerStart.i, playerStart.j));
+  yaw = Math.random() * Math.PI * 2;
+  pitch = 0;
+  player.bobAmount = 0;
+  player.bobPhase = 0;
+  player.stamina = player.maxStamina;
+
+  // Enemy
+  spawnEnemyFar();
+
+  // HUD
+  levelTag.textContent = theme.name;
+  levelTag.style.color = theme.tagColor;
+  flashlightOn = false;
+  flashlightIntensity = 0;
+  flashlight.intensity = 0;
+  flashBtn.classList.remove('on');
+  damageVig.style.opacity = 0;
+
+  camera.position.set(player.pos.x, 1.62, player.pos.z);
+  camera.rotation.y = yaw;
+  camera.rotation.x = pitch;
+  camera.rotation.z = 0;
+  playerLight.position.set(player.pos.x, 1.7, player.pos.z);
+}
+
+/* ============================================================
+   14. INPUT
+============================================================ */
+const keys = Object.create(null);
+window.addEventListener('keydown', e => {
+  keys[e.code] = true;
+  if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'].includes(e.code)) e.preventDefault();
+  if (e.code === 'KeyF' && state === 'playing') toggleFlashlight();
+  if (e.code === 'Escape'){
+    if (state === 'playing') setState('paused');
+    else if (state === 'paused') setState('playing');
+  }
+});
+window.addEventListener('keyup', e => { keys[e.code] = false; });
+
+renderer.domElement.addEventListener('click', () => {
+  if (state === 'playing' && !isTouch && document.pointerLockElement !== renderer.domElement){
+    renderer.domElement.requestPointerLock();
+  }
+});
+document.addEventListener('mousemove', e => {
+  if (state !== 'playing' || isTouch) return;
+  if (document.pointerLockElement !== renderer.domElement) return;
+  yaw   -= e.movementX * 0.0022 * SETTINGS.sens;
+  pitch -= e.movementY * 0.0022 * SETTINGS.sens;
+  pitch = Math.max(-1.15, Math.min(1.15, pitch));
+});
+document.addEventListener('pointerlockchange', () => {
+  if (isTouch || state !== 'playing') return;
+  if (document.pointerLockElement !== renderer.domElement) setState('paused');
+});
+
+const joy = { x: 0, y: 0, id: null, ox: 0, oy: 0 };
+let lookId = null, lookLastX = 0, lookLastY = 0;
+const JOY_RADIUS = 55;
+
+function isUIAt(x, y){
+  const e = document.elementFromPoint(x, y);
+  if (!e) return false;
+  return !!e.closest('button, .mobtn, #pauseBtn, .screen, #settingsScreen');
+}
+function touchStart(e){
+  if (state !== 'playing') return;
+  for (const t of e.changedTouches){
+    if (isUIAt(t.clientX, t.clientY)) continue;
+    const leftZone = t.clientX < window.innerWidth * 0.45;
+    if (leftZone && joy.id === null){
+      joy.id = t.identifier;
+      joy.ox = t.clientX; joy.oy = t.clientY;
+      joy.x = 0; joy.y = 0;
+      joyBase.style.left = t.clientX + 'px';
+      joyBase.style.top  = t.clientY + 'px';
+      joyBase.style.display = 'block';
+      joyKnob.style.transform = 'translate(0px,0px)';
+    } else if (lookId === null){
+      lookId = t.identifier;
+      lookLastX = t.clientX; lookLastY = t.clientY;
+    }
+  }
+}
+function touchMove(e){
+  if (joy.id === null && lookId === null) return;
+  e.preventDefault();
+  for (const t of e.changedTouches){
+    if (t.identifier === joy.id){
+      let dx = t.clientX - joy.ox;
+      let dy = t.clientY - joy.oy;
+      const len = Math.hypot(dx,dy);
+      if (len > JOY_RADIUS){ dx = dx/len*JOY_RADIUS; dy = dy/len*JOY_RADIUS; }
+      joy.x = dx/JOY_RADIUS;
+      joy.y = dy/JOY_RADIUS;
+      joyKnob.style.transform = `translate(${dx}px,${dy}px)`;
+    } else if (t.identifier === lookId){
+      const dx = t.clientX - lookLastX;
+      const dy = t.clientY - lookLastY;
+      lookLastX = t.clientX; lookLastY = t.clientY;
+      yaw   -= dx * 0.0052 * SETTINGS.touchSens;
+      pitch -= dy * 0.0052 * SETTINGS.touchSens;
+      pitch = Math.max(-1.15, Math.min(1.15, pitch));
+    }
+  }
+}
+function touchEnd(e){
+  for (const t of e.changedTouches){
+    if (t.identifier === joy.id){
+      joy.id = null; joy.x = 0; joy.y = 0;
+      joyBase.style.display = 'none';
+    } else if (t.identifier === lookId){
+      lookId = null;
+    }
+  }
+}
+window.addEventListener('touchstart', touchStart, { passive: true });
+window.addEventListener('touchmove', touchMove, { passive: false });
+window.addEventListener('touchend', touchEnd, { passive: true });
+window.addEventListener('touchcancel', touchEnd, { passive: true });
+
+function bindHold(btn, onDown, onUp){
+  const down = e => { e.preventDefault(); e.stopPropagation(); onDown(); };
+  const up   = e => { e.preventDefault(); e.stopPropagation(); onUp(); };
+  btn.addEventListener('touchstart', down, { passive: false });
+  btn.addEventListener('touchend', up, { passive: false });
+  btn.addEventListener('touchcancel', up, { passive: false });
+  btn.addEventListener('mousedown', down);
+  btn.addEventListener('mouseup', up);
+  btn.addEventListener('mouseleave', up);
+}
+bindHold(sprintBtn, () => { sprintTouch = true; }, () => { sprintTouch = false; });
+flashBtn.addEventListener('click', e => {
+  e.preventDefault(); e.stopPropagation();
+  if (state === 'playing') toggleFlashlight();
+});
+
+function onTap(node, fn){
+  let last = 0;
+  const handler = (e) => {
+    if (node.disabled) return;
+    const now = Date.now();
+    if (now - last < 450) return;
+    last = now;
+    if (e.cancelable) e.preventDefault();
+    fn(e);
+  };
+  node.addEventListener('click', handler);
+  node.addEventListener('touchend', handler, { passive: false });
+}
+
+/* ============================================================
+   15. AUDIO
+============================================================ */
+let actx = null, masterGain = null, sfxGain = null, humGain = null, exitGain = null;
+function initAudio(){
+  if (actx) return;
+  try {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return;
+    actx = new Ctx();
+    masterGain = actx.createGain();
+    masterGain.gain.value = SETTINGS.master;
+    masterGain.connect(actx.destination);
+    sfxGain = actx.createGain();
+    sfxGain.gain.value = SETTINGS.sfx;
+    sfxGain.connect(masterGain);
+
+    const o1 = actx.createOscillator(); o1.type = 'sawtooth'; o1.frequency.value = 58;
+    const o2 = actx.createOscillator(); o2.type = 'sine';     o2.frequency.value = 119.5;
+    const lp = actx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 190;
+    humGain = actx.createGain(); humGain.gain.value = 0.075;
+    o1.connect(lp); o2.connect(lp); lp.connect(humGain); humGain.connect(masterGain);
+    o1.start(); o2.start();
+
+    const eo = actx.createOscillator(); eo.type = 'sine'; eo.frequency.value = 520;
+    exitGain = actx.createGain(); exitGain.gain.value = 0;
+    eo.connect(exitGain); exitGain.connect(masterGain);
+    eo.start();
+  } catch (err) { actx = null; }
+}
+function resumeAudio(){
+  if (actx && actx.state === 'suspended') actx.resume().catch(() => {});
+}
+function playScareSound(){
+  if (!actx) return;
+  try {
+    const len = Math.floor(actx.sampleRate * 1.3);
+    const buf = actx.createBuffer(1, len, actx.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = (Math.random()*2-1) * Math.pow(1-i/len, 1.4);
+    const src = actx.createBufferSource(); src.buffer = buf;
+    const g = actx.createGain(); g.gain.value = 0.4;
+    src.connect(g); g.connect(sfxGain);
+    src.start();
+  } catch (err) {}
+}
+function playPickupChime(){
+  if (!actx) return;
+  try {
+    const o = actx.createOscillator(); o.type = 'sine';
+    const g = actx.createGain();
+    const t = actx.currentTime;
+    o.frequency.setValueAtTime(680, t);
+    o.frequency.exponentialRampToValueAtTime(1180, t + 0.15);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.18, t + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.4);
+    o.connect(g); g.connect(sfxGain);
+    o.start(t); o.stop(t + 0.45);
+  } catch (err) {}
+}
+function playDescendSound(){
+  if (!actx) return;
+  try {
+    const o = actx.createOscillator(); o.type = 'triangle';
+    const g = actx.createGain();
+    const t = actx.currentTime;
+    o.frequency.setValueAtTime(440, t);
+    o.frequency.exponentialRampToValueAtTime(70, t + 1.2);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.22, t + 0.1);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 1.4);
+    o.connect(g); g.connect(sfxGain);
+    o.start(t); o.stop(t + 1.5);
+  } catch (err) {}
+}
+
+/* ============================================================
+   16. SCARE FACE
+============================================================ */
+(function buildScareFace(){
+  const c = document.createElement('canvas');
+  c.width = c.height = 512;
+  const x = c.getContext('2d');
+  x.fillStyle = '#070604'; x.fillRect(0,0,512,512);
+  const grd = x.createRadialGradient(256,240,20,256,240,250);
+  grd.addColorStop(0,'#3b3423'); grd.addColorStop(1,'#070604');
+  x.fillStyle = grd;
+  x.beginPath(); x.ellipse(256,250,195,235,0,0,7); x.fill();
+  for (const ex of [178,334]){
+    const g2 = x.createRadialGradient(ex,205,2,ex,205,66);
+    g2.addColorStop(0,'#ffffff');
+    g2.addColorStop(0.22,'#ffd84a');
+    g2.addColorStop(1,'rgba(255,70,0,0)');
+    x.fillStyle = g2;
+    x.beginPath(); x.arc(ex,205,66,0,7); x.fill();
+    x.fillStyle = '#000';
+    x.beginPath(); x.ellipse(ex,205,15,23,0,0,7); x.fill();
+  }
+  x.fillStyle = '#000';
+  x.beginPath(); x.ellipse(256,365,84,62,0,0,7); x.fill();
+  x.fillStyle = '#cfc6a4';
+  for (let i = 0; i < 7; i++){
+    const tx = 188 + i*22;
+    x.beginPath();
+    x.moveTo(tx,312); x.lineTo(tx+16,312); x.lineTo(tx+8,352);
+    x.closePath(); x.fill();
+  }
+  scareEl.style.backgroundImage = `url(${c.toDataURL()})`;
+})();
+
+/* ============================================================
+   17. STATE / UI
+============================================================ */
+function setState(s){
+  state = s;
+  startScreen.classList.toggle('hidden', s !== 'menu');
+  pauseScreen.classList.toggle('hidden', s !== 'paused');
+  endScreen.classList.toggle('hidden', s !== 'over');
+  settingsScreen.classList.toggle('hidden', s !== 'settings');
+  levelScreen.classList.toggle('hidden', s !== 'transition');
+  if ((s === 'paused' || s === 'settings' || s === 'transition') && !isTouch && document.pointerLockElement){
+    document.exitPointerLock?.();
+  }
+}
+function showHint(text, duration = 4200){
+  hintEl.textContent = text;
+  hintEl.classList.add('show');
+  clearTimeout(showHint._t);
+  showHint._t = setTimeout(() => hintEl.classList.remove('show'), duration);
+}
+function showLore(text, duration = 5000){
+  loreEl.textContent = text;
+  loreEl.classList.add('show');
+  clearTimeout(showLore._t);
+  showLore._t = setTimeout(() => loreEl.classList.remove('show'), duration);
+}
+function flashScreen(duration = 260){
+  flashFx.style.transition = 'opacity 0.05s';
+  flashFx.style.opacity = '0.85';
+  setTimeout(() => {
+    flashFx.style.transition = 'opacity ' + (duration/1000) + 's';
+    flashFx.style.opacity = '0';
+  }, 40);
+}
+function formatTime(t){
+  const m = Math.floor(t/60).toString().padStart(2,'0');
+  const s = Math.floor(t%60).toString().padStart(2,'0');
+  return `${m}:${s}`;
+}
+function toggleFlashlight(){
+  flashlightOn = !flashlightOn;
+  flashBtn.classList.toggle('on', flashlightOn);
+}
+
+function startGame(){
+  elapsed = 0;
+  player.score = 0;
+  scoreEl.textContent = 'SCORE 0';
+  buildLevel(1);
+  transitionLock = false;
+
+  scareEl.classList.remove('on');
+  endScreen.classList.remove('win','lose');
+  endScreen.classList.add('hidden');
+  damageVig.style.opacity = 0;
+
+  setState('playing');
+  showHint("Find the green light. Don't let it find you.", 5200);
+
+  if (!isTouch){
+    const p = renderer.domElement.requestPointerLock?.();
+    if (p && p.catch) p.catch(() => {});
+  }
+}
+
+function returnToMenu(){
+  clearTimeout(onReachExit._auto);
+  clearTimeout(winGame._auto);
+  transitionLock = false;
+  if (exitGain) exitGain.gain.value = 0;
+  damageVig.style.opacity = 0;
+  scareEl.classList.remove('on');
+  endScreen.classList.remove('win','lose');
+  endScreen.classList.add('hidden');
+  levelScreen.classList.add('hidden');
+
+  // Reset player state
+  elapsed = 0;
+  player.score = 0;
+  scoreEl.textContent = 'SCORE 0';
+
+  // Rebuild a preview level for the menu background
+  currentLevel = 1;
+  buildLevel(1);
+  yaw = 0;
+
+  setState('menu');
+}
+
+function gameOver(){
+  if (state === 'over') return;
+  setState('over');
+  playScareSound();
+  scareEl.classList.add('on');
+  if (navigator.vibrate) navigator.vibrate([120,60,200]);
+  if (!isTouch && document.pointerLockElement) document.exitPointerLock?.();
+
+  setTimeout(() => {
+    scareEl.classList.remove('on');
+    endScreen.classList.add('lose');
+    endScreen.classList.remove('win');
+    endTitle.textContent = 'IT FOUND YOU';
+    endMsg.textContent = `LEVEL ${currentLevel} · SCORE ${player.score} · TIME ${formatTime(elapsed)}`;
+    againBtn.textContent = 'TRY AGAIN';
+  }, 750);
+}
+
+function winGame(){
+  if (state === 'over') return;
+  setState('over');
+  if (!isTouch && document.pointerLockElement) document.exitPointerLock?.();
+  endScreen.classList.add('win');
+  endScreen.classList.remove('lose');
+  endTitle.textContent = 'YOU ESCAPED';
+  endMsg.textContent = `BOTH LEVELS CLEARED · SCORE ${player.score} · TIME ${formatTime(elapsed)}`;
+  againBtn.textContent = 'PLAY AGAIN';
+  if (exitGain) exitGain.gain.value = 0;
+  flashScreen(600);
+
+  // Auto-return to main menu after 7 seconds
+  clearTimeout(winGame._auto);
+  winGame._auto = setTimeout(() => {
+    if (state === 'over' && endScreen.classList.contains('win')) returnToMenu();
+  }, 7000);
+}
+
+function onReachExit(){
+  if (transitionLock) return;
+  transitionLock = true;
+  flashScreen(400);
+  if (exitGain) exitGain.gain.value = 0;
+
+  if (currentLevel >= MAX_LEVEL){
+    winGame();
+    return;
+  }
+
+  setTimeout(() => {
+    playDescendSound();
+    levelTitle.textContent = 'LEVEL ' + currentLevel + ' CLEARED';
+    levelMsg.textContent = currentLevel === 1
+      ? 'You found the exit. Something greener waits below.'
+      : 'You found the exit.';
+    setState('transition');
+    clearTimeout(onReachExit._auto);
+    onReachExit._auto = setTimeout(() => {
+      if (state === 'transition') goToNextLevel();
+    }, 6000);
+  }, 350);
+}
+
+function goToNextLevel(){
+  clearTimeout(onReachExit._auto);
+  if (currentLevel >= MAX_LEVEL){
+    winGame();
+    return;
+  }
+  const next = currentLevel + 1;
+  buildLevel(next);
+  transitionLock = false;
+  setState('playing');
+  showHint(
+    next === 2
+      ? 'The Garden. The hedges whisper. Find the golden gate.'
+      : 'Find the green light.',
+    5000
+  );
+  if (!isTouch){
+    const p = renderer.domElement.requestPointerLock?.();
+    if (p && p.catch) p.catch(() => {});
+  }
+}
+
+/* ============================================================
+   18. UPDATE
+============================================================ */
+function updatePlayer(dt){
+  const kf = (keys['KeyW']||keys['ArrowUp']?1:0) - (keys['KeyS']||keys['ArrowDown']?1:0);
+  const ks = (keys['KeyD']||keys['ArrowRight']?1:0) - (keys['KeyA']||keys['ArrowLeft']?1:0);
+  const kmag = Math.hypot(kf,ks);
+  const jf = -joy.y;
+  const js = joy.x;
+  const jmag = Math.min(1, Math.hypot(jf,js));
+
+  let dirF = 0, dirS = 0, baseSpeed = 0;
+  let moving = false;
+
+  if (jmag > 0.09){
+    dirF = jf / Math.hypot(jf,js);
+    dirS = js / Math.hypot(jf,js);
+    baseSpeed = 5.0 * jmag;
+    moving = true;
+  } else if (kmag > 0.01){
+    dirF = kf / kmag;
+    dirS = ks / kmag;
+    baseSpeed = 3.4;
+    moving = true;
+  }
+
+  const wantsSprint = (keys['ShiftLeft']||keys['ShiftRight']||sprintTouch) && moving;
+  if (wantsSprint && player.stamina > 1){
+    player.sprinting = true;
+    baseSpeed *= 1.75;
+    player.stamina = Math.max(0, player.stamina - player.staminaDrain * dt);
+  } else {
+    player.sprinting = false;
+    player.stamina = Math.min(player.maxStamina, player.stamina + player.staminaRegen * dt);
+  }
+  staminaFill.style.width = (player.stamina / player.maxStamina * 100) + '%';
+  staminaFill.classList.toggle('low', player.stamina < 25);
+
+  const sinY = Math.sin(yaw), cosY = Math.cos(yaw);
+  const dx = (-sinY*dirF + cosY*dirS) * baseSpeed * dt;
+  const dz = (-cosY*dirF - sinY*dirS) * baseSpeed * dt;
+
+  const nx = player.pos.x + dx;
+  if (!blockedAt(nx, player.pos.z, player.radius)) player.pos.x = nx;
+  const nz = player.pos.z + dz;
+  if (!blockedAt(player.pos.x, nz, player.radius)) player.pos.z = nz;
+
+  if (SETTINGS.headBob){
+    player.bobPhase += dt * (6 + baseSpeed*1.1);
+    const targetBob = moving ? 0.045 : 0;
+    player.bobAmount += (targetBob - player.bobAmount) * Math.min(1, dt*8);
+  } else {
+    player.bobAmount *= Math.max(0, 1 - dt*6);
+  }
+  const bobY = Math.sin(player.bobPhase*2) * player.bobAmount;
+
+  camera.position.set(player.pos.x, 1.62 + bobY, player.pos.z);
+  camera.rotation.y = yaw;
+  camera.rotation.x = pitch;
+  camera.rotation.z = -dirS * 0.018;
+  playerLight.position.set(player.pos.x, 1.7, player.pos.z);
+
+  const targetF = flashlightOn ? 1 : 0;
+  flashlightIntensity += (targetF - flashlightIntensity) * Math.min(1, dt*8);
+  flashlight.intensity = flashlightIntensity * 2.2;
+
+  for (const c of collectibles){
+    if (c.collected) continue;
+    const d = Math.hypot(player.pos.x - c.pos.x, player.pos.z - c.pos.z);
+    if (d < c.radius){
+      c.collected = true;
+      c.group.visible = false;
+      playPickupChime();
+      if (c.type === 'water'){
+        player.stamina = player.maxStamina;
+        player.score += 50;
+        showLore("Almond Water. Tastes like static. You feel steadier.");
+      } else {
+        player.score += 25;
+        const pool = currentTheme.kind === 'garden' ? NOTES_L2 : NOTES_L1;
+        showLore(pool[Math.floor(Math.random()*pool.length)], 6000);
+      }
+      scoreEl.textContent = 'SCORE ' + player.score;
+    }
+  }
+
+  const dExit = Math.hypot(player.pos.x - exitPos.x, player.pos.z - exitPos.z);
+  if (dExit < 1.6) onReachExit();
+}
+
+function updateEnemy(dt){
+  const dist = player.pos.distanceTo(enemy.pos);
+  const diff = DIFF[SETTINGS.diff] || DIFF[1];
+  const theme = currentTheme;
+  const chasing = dist < diff.detect;
+  enemy.chasing = chasing;
+
+  enemy.pathTimer -= dt;
+  const ec = worldToCell(enemy.pos.x, enemy.pos.z);
+
+  if (enemy.pathTimer <= 0 || !enemy.next){
+    enemy.pathTimer = chasing ? 0.3 : 0.9;
+    if (chasing){
+      const pc = worldToCell(player.pos.x, player.pos.z);
+      enemy.next = bfsStep(ec.i, ec.j, pc.i, pc.j);
+    } else {
+      if (!enemy.wanderTarget ||
+          (ec.i === enemy.wanderTarget.i && ec.j === enemy.wanderTarget.j)){
+        enemy.wanderTarget = randomOpenCell();
+      }
+      enemy.next = bfsStep(ec.i, ec.j, enemy.wanderTarget.i, enemy.wanderTarget.j);
+    }
+  }
+
+  if (enemy.next){
+    const t = cellToWorld(enemy.next.i, enemy.next.j);
+    let vx = t.x - enemy.pos.x;
+    let vz = t.z - enemy.pos.z;
+    const len = Math.hypot(vx,vz);
+    if (len < 0.12){
+      enemy.next = null;
+    } else {
+      vx /= len; vz /= len;
+      const mult = theme.enemySpeedMult || 1;
+      const spd = (chasing ? diff.chase : diff.wander) * mult;
+      enemy.pos.x += vx*spd*dt;
+      enemy.pos.z += vz*spd*dt;
+      enemy.group.rotation.y = Math.atan2(vx, vz);
+    }
+  }
+  enemy.group.position.set(enemy.pos.x, 0, enemy.pos.z);
+
+  const pulse = chasing ? (0.55 + Math.sin(performance.now()*0.012)*0.45) : 0.25;
+  enemy.eyeMat.color.setRGB(1, 0.15 + pulse*0.45, 0.05);
+
+  if (humGain && actx){
+    const prox = Math.max(0, 1 - dist/18);
+    humGain.gain.setTargetAtTime(0.05 + prox*0.13, actx.currentTime, 0.2);
+  }
+
+  const threat = Math.max(0, 1 - dist / 4);
+  damageVig.style.opacity = (threat * 0.9).toFixed(2);
+
+  if (dist < 1.25) gameOver();
+}
+
+function updateExit(){
+  const t = performance.now()*0.002;
+  exitMat.opacity = 0.38 + Math.sin(t)*0.14;
+  exitLight.intensity = 1.3 + Math.sin(t*1.3)*0.45;
+  exitGroup.rotation.y = Math.sin(t*0.5) * 0.06;
+  const d = Math.hypot(player.pos.x - exitPos.x, player.pos.z - exitPos.z);
+  if (exitGain && actx){
+    const prox = Math.max(0, 1 - d/24);
+    exitGain.gain.setTargetAtTime(prox*prox*0.10, actx.currentTime, 0.25);
+  }
+}
+
+function updateCollectibles(t){
+  for (const c of collectibles){
+    if (c.collected) continue;
+    c.group.position.y = c.baseY + Math.sin(t*2 + c.phase) * 0.12;
+    c.group.rotation.y += 0.012;
+  }
+}
+
+function updateFlicker(){
+  if (!flickerMatRef) return;
+  const t = performance.now() * 0.005;
+  const n = Math.sin(t) * Math.sin(t*1.7) * Math.sin(t*2.3);
+  const on = n > -0.25;
+  const theme = currentTheme;
+  const col = on ? theme.flickerOn : theme.flickerOff;
+  flickerMatRef.color.setRGB(col[0], col[1], col[2]);
+}
+
+/* ============================================================
+   19. SETTINGS UI
+============================================================ */
+function applySettings(){
+  if (masterGain) masterGain.gain.value = SETTINGS.master;
+  if (sfxGain) sfxGain.gain.value = SETTINGS.sfx;
+  camera.fov = SETTINGS.fov;
+  camera.updateProjectionMatrix();
+  grainEl.style.display = SETTINGS.grain ? '' : 'none';
+  vigEl.style.display = SETTINGS.vignette ? '' : 'none';
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, QUALITY_PR[SETTINGS.quality]));
+  fpsEl.style.display = SETTINGS.showFps ? '' : 'none';
+}
+function refreshSettingsUI(){
+  el('sMaster').value = Math.round(SETTINGS.master * 100);
+  el('vMaster').textContent = Math.round(SETTINGS.master * 100) + '%';
+  el('sSfx').value = Math.round(SETTINGS.sfx * 100);
+  el('vSfx').textContent = Math.round(SETTINGS.sfx * 100) + '%';
+  el('sSens').value = Math.round(SETTINGS.sens * 100);
+  el('vSens').textContent = Math.round(SETTINGS.sens * 100) + '%';
+  el('sTouchSens').value = Math.round(SETTINGS.touchSens * 100);
+  el('vTouchSens').textContent = Math.round(SETTINGS.touchSens * 100) + '%';
+  el('sFov').value = SETTINGS.fov;
+  el('vFov').textContent = SETTINGS.fov + '°';
+  document.querySelectorAll('#sDiff button').forEach(b => {
+    b.classList.toggle('active', parseInt(b.dataset.v) === SETTINGS.diff);
+  });
+  el('vDiff').textContent = DIFF_LABEL[SETTINGS.diff];
+  document.querySelectorAll('#sQual button').forEach(b => {
+    b.classList.toggle('active', parseInt(b.dataset.v) === SETTINGS.quality);
+  });
+  el('vQual').textContent = QUALITY_LABEL[SETTINGS.quality];
+  el('sHeadBob').classList.toggle('on', SETTINGS.headBob);
+  el('sHeadBob').textContent = SETTINGS.headBob ? 'ON' : 'OFF';
+  el('sGrain').classList.toggle('on', SETTINGS.grain);
+  el('sGrain').textContent = SETTINGS.grain ? 'ON' : 'OFF';
+  el('sVig').classList.toggle('on', SETTINGS.vignette);
+  el('sVig').textContent = SETTINGS.vignette ? 'ON' : 'OFF';
+  el('sFps').classList.toggle('on', SETTINGS.showFps);
+  el('sFps').textContent = SETTINGS.showFps ? 'ON' : 'OFF';
+}
+function bindSettingControls(){
+  el('sMaster').addEventListener('input', e => {
+    SETTINGS.master = e.target.value/100;
+    el('vMaster').textContent = e.target.value + '%';
+    if (masterGain) masterGain.gain.value = SETTINGS.master;
+    saveSettings();
+  });
+  el('sSfx').addEventListener('input', e => {
+    SETTINGS.sfx = e.target.value/100;
+    el('vSfx').textContent = e.target.value + '%';
+    if (sfxGain) sfxGain.gain.value = SETTINGS.sfx;
+    saveSettings();
+  });
+  el('sSens').addEventListener('input', e => {
+    SETTINGS.sens = e.target.value/100;
+    el('vSens').textContent = e.target.value + '%';
+    saveSettings();
+  });
+  el('sTouchSens').addEventListener('input', e => {
+    SETTINGS.touchSens = e.target.value/100;
+    el('vTouchSens').textContent = e.target.value + '%';
+    saveSettings();
+  });
+  el('sFov').addEventListener('input', e => {
+    SETTINGS.fov = parseInt(e.target.value);
+    el('vFov').textContent = SETTINGS.fov + '°';
+    camera.fov = SETTINGS.fov;
+    camera.updateProjectionMatrix();
+    saveSettings();
+  });
+  document.querySelectorAll('#sDiff button').forEach(b => {
+    b.addEventListener('click', () => {
+      SETTINGS.diff = parseInt(b.dataset.v);
+      refreshSettingsUI(); saveSettings();
+    });
+  });
+  document.querySelectorAll('#sQual button').forEach(b => {
+    b.addEventListener('click', () => {
+      SETTINGS.quality = parseInt(b.dataset.v);
+      applySettings(); refreshSettingsUI(); saveSettings();
+    });
+  });
+  const toggles = [
+    ['sHeadBob', 'headBob'],
+    ['sGrain', 'grain'],
+    ['sVig', 'vignette'],
+    ['sFps', 'showFps'],
+  ];
+  for (const [id, key] of toggles){
+    el(id).addEventListener('click', () => {
+      SETTINGS[key] = !SETTINGS[key];
+      applySettings(); refreshSettingsUI(); saveSettings();
+    });
+  }
+}
+function openSettings(from){
+  settingsReturn = from;
+  setState('settings');
+  refreshSettingsUI();
+}
+function closeSettings(){
+  setState(settingsReturn);
+}
+
+/* ============================================================
+   20. LOOP
+============================================================ */
+const clock = new THREE.Clock();
+let fpsAccum = 0, fpsFrames = 0;
+
+function animate(){
+  requestAnimationFrame(animate);
+  const dt = Math.min(clock.getDelta(), 0.05);
+  const now = performance.now() / 1000;
+
+  updateFlicker();
+  updateCollectibles(now);
+
+  if (state === 'playing'){
+    elapsed += dt;
+    updatePlayer(dt);
+    if (state === 'playing') updateEnemy(dt);
+    updateExit();
+    timerEl.textContent = formatTime(elapsed);
+  } else if (state === 'menu'){
+    yaw += dt * 0.06;
+    if (player.pos.lengthSq() === 0) player.pos.copy(cellToWorld(1,1));
+    camera.position.set(player.pos.x, 1.62, player.pos.z);
+    camera.rotation.y = yaw;
+    camera.rotation.x = -0.04;
+    camera.rotation.z = 0;
+    playerLight.position.set(player.pos.x, 1.7, player.pos.z);
+    exitMat.opacity = 0.38 + Math.sin(now*2)*0.14;
+  }
+
+  if (SETTINGS.showFps){
+    fpsAccum += dt; fpsFrames++;
+    if (fpsAccum > 0.5){
+      fpsEl.textContent = Math.round(fpsFrames / fpsAccum) + ' FPS';
+      fpsAccum = 0; fpsFrames = 0;
+    }
+  }
+
+  renderer.render(scene, camera);
+}
+
+/* ============================================================
+   21. EVENTS
+============================================================ */
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, QUALITY_PR[SETTINGS.quality]));
+});
+
+onTap(startBtn, () => {
+  initAudio();
+  resumeAudio();
+  startGame();
+});
+onTap(againBtn, () => {
+  // If we just won → back to menu. Otherwise restart.
+  if (endScreen.classList.contains('win')){
+    returnToMenu();
+  } else {
+    initAudio();
+    resumeAudio();
+    startGame();
+  }
+});
+onTap(menuBtn, () => returnToMenu());
+onTap(nextLevelBtn, () => {
+  resumeAudio();
+  goToNextLevel();
+});
+onTap(el('resumeBtn'), () => {
+  setState('playing');
+  resumeAudio();
+  if (!isTouch){
+    const p = renderer.domElement.requestPointerLock?.();
+    if (p && p.catch) p.catch(() => {});
+  }
+});
+onTap(el('quitBtn'), () => returnToMenu());
+onTap(el('openSettings1'), () => openSettings('menu'));
+onTap(el('openSettings2'), () => openSettings('paused'));
+onTap(el('settingsBack'), () => closeSettings());
+onTap(pauseBtn, () => {
+  if (state === 'playing') setState('paused');
+});
+
+window.addEventListener('contextmenu', e => e.preventDefault());
+window.addEventListener('gesturestart', e => e.preventDefault());
+
+/* ============================================================
+   22. INIT
+============================================================ */
+bindSettingControls();
+applySettings();
+refreshSettingsUI();
+
+// Build a preview level for the menu background
+currentLevel = 1;
+buildLevel(1);
+player.pos.copy(cellToWorld(playerStart.i, playerStart.j));
+
+animate();
+
+startBtn.disabled = false;
+startBtn.textContent = 'ENTER';
+</script>
+</body>
+</html>
