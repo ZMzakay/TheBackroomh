@@ -250,6 +250,13 @@
   #levelScreen h2{color:#7cf0b0;text-shadow:0 0 30px rgba(80,255,160,.45);}
   #levelScreen .sub{color:#a6e0b2;}
 
+  /* Level 3 transition screen — scarier */
+  #levelScreen.final{
+    background:radial-gradient(ellipse at 50% 42%, #2a0a0a 0%, #0a0303 55%, #000 100%);
+  }
+  #levelScreen.final h2{color:#ff5050;text-shadow:0 0 34px rgba(255,40,40,.6);}
+  #levelScreen.final .sub{color:#e8a0a0;}
+
   #loadError{
     position:fixed;inset:0;z-index:300;display:none;
     align-items:center;justify-content:center;text-align:center;
@@ -300,7 +307,7 @@
   <div class="keys" id="ctrlText"></div>
   <button id="startBtn" disabled>LOADING…</button>
   <button class="ghost" id="openSettings1">SETTINGS</button>
-  <p class="tiny">TWO LEVELS · RANDOM MAZES · NO TWO RUNS ALIKE</p>
+  <p class="tiny">THREE LEVELS · RANDOM MAZES · NO TWO RUNS ALIKE</p>
 </div>
 
 <div id="pauseScreen" class="screen hidden">
@@ -450,7 +457,7 @@ const DIFF = [
 ];
 
 /* ============================================================
-   2. THEMES (Level 1 = Backrooms, Level 2 = Garden)
+   2. THEMES — Level 1 Backrooms, Level 2 Garden, Level 3 School
 ============================================================ */
 const THEMES = {
   1: {
@@ -482,6 +489,24 @@ const THEMES = {
     enemySpeedMult: 1.10,
     exitColor: 0xffd84a, exitLight: 0xffd84a,
     tagColor: '#b8f0a0'
+  },
+  3: {
+    name: 'LEVEL 3 — THE SCHOOL',
+    kind: 'school',
+    // Cold, claustrophobic, near-pitch-black
+    fog: 0x0a0b10, fogNear: 1.2, fogFar: 15,
+    ambient: 0x9aa8c0, ambientI: 0.30,
+    hemiSky: 0x7080a0, hemiGround: 0x080810, hemiI: 0.32,
+    panelColor: 0xf0f8ff,
+    flickerOn: [1.0, 1.0, 1.0], flickerOff: [0.02, 0.02, 0.05],
+    panelChance: 0.34, flickerChance: 0.78, emergChance: 0.14,
+    boxChance: 0.0, puddleChance: 0.18,
+    extraOpenChance: 0.0,
+    enemySpeedMult: 1.75,        // HYPER FAST
+    detectOverride: 8,           // short sight — sneaky
+    enemySpawnNear: true,        // spawn near, not at exit
+    exitColor: 0x66ddff, exitLight: 0x66ddff,
+    tagColor: '#ffffff'
   }
 };
 
@@ -630,7 +655,6 @@ function paintCardboard(ctx, s){
 ============================================================ */
 function paintHedge(ctx, s){
   ctx.fillStyle = '#245820'; ctx.fillRect(0,0,s,s);
-  // Leafy clusters
   for (let i = 0; i < 240; i++){
     const x = Math.random()*s, y = Math.random()*s;
     const r = 3 + Math.random()*8;
@@ -649,7 +673,6 @@ function paintHedge(ctx, s){
     ctx.fillStyle = g;
     ctx.beginPath(); ctx.arc(x,y,r,0,7); ctx.fill();
   }
-  // Highlight sparkles
   for (let i = 0; i < 90; i++){
     ctx.fillStyle = `rgba(190,230,140,${0.2+Math.random()*0.35})`;
     ctx.fillRect(Math.random()*s, Math.random()*s, 1.5, 1.5);
@@ -661,7 +684,7 @@ function paintGrass(ctx, s){
     const x = Math.random()*s, y = Math.random()*s;
     const v = Math.random();
     if (v > 0.94){
-      ctx.fillStyle = `rgba(230,190,90,${0.4+Math.random()*0.4})`; // tiny flowers
+      ctx.fillStyle = `rgba(230,190,90,${0.4+Math.random()*0.4})`;
     } else if (v > 0.5){
       ctx.fillStyle = `rgba(90,150,65,${0.3+Math.random()*0.3})`;
     } else {
@@ -680,7 +703,6 @@ function paintGrass(ctx, s){
 }
 function paintSky(ctx, s){
   ctx.fillStyle = '#c4dcf0'; ctx.fillRect(0,0,s,s);
-  // Soft clouds
   for (let i = 0; i < 10; i++){
     const x = Math.random()*s, y = Math.random()*s;
     const r = 22 + Math.random()*44;
@@ -691,11 +713,113 @@ function paintSky(ctx, s){
     ctx.fillStyle = g;
     ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill();
   }
-  // Warm sunlight tint
   const warm = ctx.createLinearGradient(0, 0, 0, s);
   warm.addColorStop(0, 'rgba(255,240,200,0.15)');
   warm.addColorStop(1, 'rgba(255,240,200,0)');
   ctx.fillStyle = warm; ctx.fillRect(0,0,s,s);
+}
+
+/* ============================================================
+   6b. TEXTURES — SCHOOL (Level 3)
+============================================================ */
+function paintSchoolWall(ctx, s){
+  // Dingy off-white tile wall
+  ctx.fillStyle = '#cfc9bb'; ctx.fillRect(0,0,s,s);
+  // Tile grid
+  ctx.strokeStyle = 'rgba(110,104,90,0.25)';
+  ctx.lineWidth = 1;
+  const tile = 32;
+  for (let i = 0; i <= s; i += tile){
+    ctx.beginPath(); ctx.moveTo(i,0); ctx.lineTo(i,s); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0,i); ctx.lineTo(s,i); ctx.stroke();
+  }
+  // Grime speckle
+  for (let i = 0; i < s*s*0.4; i++){
+    ctx.fillStyle = `rgba(${60+Math.random()*70|0},${55+Math.random()*60|0},${45+Math.random()*50|0},0.07)`;
+    ctx.fillRect(Math.random()*s, Math.random()*s, 2, 2);
+  }
+  // Dark creeping stains
+  for (let i = 0; i < 12; i++){
+    const x = Math.random()*s, y = Math.random()*s, r = 12+Math.random()*54;
+    const g = ctx.createRadialGradient(x,y,0,x,y,r);
+    g.addColorStop(0,'rgba(28,22,14,0.32)');
+    g.addColorStop(1,'rgba(28,22,14,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(x,y,r,0,7); ctx.fill();
+  }
+  // Vertical drips
+  for (let i = 0; i < 6; i++){
+    const x = Math.random()*s;
+    const w = 2 + Math.random()*4;
+    const h = 30 + Math.random()*90;
+    const g = ctx.createLinearGradient(0,0,0,h);
+    g.addColorStop(0,'rgba(40,32,20,0.30)');
+    g.addColorStop(1,'rgba(40,32,20,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(x, 0, w, h);
+  }
+  // Scratches
+  ctx.strokeStyle = 'rgba(55,50,40,0.28)';
+  ctx.lineWidth = 1;
+  for (let i = 0; i < 14; i++){
+    const x = Math.random()*s, y = Math.random()*s;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x + (Math.random()-0.5)*44, y + (Math.random()-0.5)*44);
+    ctx.stroke();
+  }
+}
+function paintSchoolFloor(ctx, s){
+  // Black-and-white checkerboard, classic school hallway
+  const tile = 32;
+  for (let y = 0; y < s; y += tile){
+    for (let x = 0; x < s; x += tile){
+      const dark = ((x/tile) + (y/tile)) % 2 === 0;
+      ctx.fillStyle = dark ? '#1e1e24' : '#c8c4b8';
+      ctx.fillRect(x, y, tile, tile);
+    }
+  }
+  // Scuffs / grime
+  for (let i = 0; i < s*s*0.35; i++){
+    const v = Math.random();
+    ctx.fillStyle = v > 0.5
+      ? `rgba(20,20,24,${0.05+Math.random()*0.10})`
+      : `rgba(140,130,110,${0.04+Math.random()*0.08})`;
+    ctx.fillRect(Math.random()*s, Math.random()*s, 2, 2);
+  }
+  // Dark stains — subtle reddish
+  for (let i = 0; i < 7; i++){
+    const x = Math.random()*s, y = Math.random()*s, r = 8+Math.random()*26;
+    const g = ctx.createRadialGradient(x,y,0,x,y,r);
+    g.addColorStop(0,'rgba(60,14,10,0.35)');
+    g.addColorStop(1,'rgba(60,14,10,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(x,y,r,0,7); ctx.fill();
+  }
+}
+function paintSchoolCeil(ctx, s){
+  // Drop-ceiling acoustic tiles
+  ctx.fillStyle = '#b8b4a8'; ctx.fillRect(0,0,s,s);
+  const tile = 32;
+  ctx.strokeStyle = 'rgba(50,48,42,0.42)';
+  ctx.lineWidth = 2;
+  for (let i = 0; i <= s; i += tile){
+    ctx.beginPath(); ctx.moveTo(i,0); ctx.lineTo(i,s); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0,i); ctx.lineTo(s,i); ctx.stroke();
+  }
+  for (let i = 0; i < s*s*0.5; i++){
+    ctx.fillStyle = `rgba(${70+Math.random()*50|0},${65+Math.random()*45|0},${55+Math.random()*40|0},0.16)`;
+    ctx.fillRect(Math.random()*s, Math.random()*s, 1.5, 1.5);
+  }
+  // Water stains
+  for (let i = 0; i < 5; i++){
+    const x = Math.random()*s, y = Math.random()*s, r = 15+Math.random()*38;
+    const g = ctx.createRadialGradient(x,y,0,x,y,r);
+    g.addColorStop(0,'rgba(110,80,40,0.42)');
+    g.addColorStop(1,'rgba(110,80,40,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(x,y,r,0,7); ctx.fill();
+  }
 }
 
 const backWallTex    = makeTexture(128, paintWall, 2, 2);
@@ -705,6 +829,9 @@ const cardboardTex   = makeTexture(128, paintCardboard, 1, 1);
 const hedgeTex       = makeTexture(128, paintHedge, 2, 2);
 const grassTex       = makeTexture(128, paintGrass, 18, 18);
 const skyTex         = makeTexture(128, paintSky, 12, 12);
+const schoolWallTex  = makeTexture(256, paintSchoolWall, 2, 2);
+const schoolFloorTex = makeTexture(256, paintSchoolFloor, 14, 14);
+const schoolCeilTex  = makeTexture(256, paintSchoolCeil, 14, 14);
 
 /* ============================================================
    7. STATE
@@ -715,7 +842,7 @@ let exitCell = { i: 1, j: 1 };
 const exitPos = new THREE.Vector3();
 let playerStart = { i: 1, j: 1 };
 let currentLevel = 1;
-const MAX_LEVEL = 2;
+const MAX_LEVEL = 3;
 let levelObjects = [];
 let collectibles = [];
 let flickerMatRef = null;
@@ -771,30 +898,18 @@ function generateGardenMaze(){
   const rooms = [];
   const maxAttempts = 140;
 
-  // Mix of room sizes: small corridors, medium rooms, big halls
   for (let a = 0; a < maxAttempts && rooms.length < 11; a++){
-    // Choose room size class
     const roll = Math.random();
     let w, h;
-    if (roll < 0.30){
-      // tiny corridor-like (2x2 or 2x3)
-      w = 2; h = Math.random() < 0.5 ? 2 : 3;
-    } else if (roll < 0.70){
-      // medium (3x3 to 4x4)
-      w = 3 + Math.floor(Math.random()*2);
-      h = 3 + Math.floor(Math.random()*2);
-    } else {
-      // big hall (5x4 to 6x5)
-      w = 5 + Math.floor(Math.random()*2);
-      h = 4 + Math.floor(Math.random()*2);
-    }
+    if (roll < 0.30){ w = 2; h = Math.random() < 0.5 ? 2 : 3; }
+    else if (roll < 0.70){ w = 3 + Math.floor(Math.random()*2); h = 3 + Math.floor(Math.random()*2); }
+    else { w = 5 + Math.floor(Math.random()*2); h = 4 + Math.floor(Math.random()*2); }
     if (w > COLS-2 || h > ROWS-2) continue;
 
     const x = 1 + Math.floor(Math.random() * (COLS - w - 2));
     const y = 1 + Math.floor(Math.random() * (ROWS - h - 2));
     const newRoom = { x, y, w, h };
 
-    // 1-cell buffer between rooms
     let overlaps = false;
     for (const r of rooms){
       if (!(newRoom.x + newRoom.w + 1 <= r.x ||
@@ -806,7 +921,6 @@ function generateGardenMaze(){
     }
     if (overlaps) continue;
 
-    // Carve interior
     for (let j = y; j < y + h; j++)
       for (let i = x; i < x + w; i++)
         g[j][i] = 0;
@@ -814,7 +928,6 @@ function generateGardenMaze(){
     rooms.push(newRoom);
   }
 
-  // Fallback if no rooms placed
   if (rooms.length === 0){
     for (let j = 2; j < 8; j++)
       for (let i = 2; i < 8; i++)
@@ -825,11 +938,9 @@ function generateGardenMaze(){
   const cx = r => r.x + Math.floor(r.w/2);
   const cy = r => r.y + Math.floor(r.h/2);
 
-  // Connect rooms in a chain
   for (let k = 1; k < rooms.length; k++){
     carveL(g, cx(rooms[k-1]), cy(rooms[k-1]), cx(rooms[k]), cy(rooms[k]));
   }
-  // Extra connections → loops
   const extras = 3 + Math.floor(Math.random()*4);
   for (let e = 0; e < extras; e++){
     const r1 = rooms[Math.floor(Math.random()*rooms.length)];
@@ -841,8 +952,77 @@ function generateGardenMaze(){
   return g;
 }
 
+/* ============================================================
+   9b. MAZE GEN — LEVEL 3 (school: grid of classrooms + corridors)
+============================================================ */
+function generateSchoolMaze(){
+  const g = Array.from({length: ROWS}, () => new Array(COLS).fill(1));
+  const RW = 3, RH = 3, STEP = 4;
+  const roomCols = Math.floor((COLS-1)/STEP);
+  const roomRows = Math.floor((ROWS-1)/STEP);
+  const rooms = [];
+
+  // Carve a grid of 3x3 classrooms separated by 1-tile walls
+  for (let ry = 0; ry < roomRows; ry++){
+    for (let rx = 0; rx < roomCols; rx++){
+      const x = 1 + rx*STEP;
+      const y = 1 + ry*STEP;
+      for (let j = y; j < y+RH && j < ROWS-1; j++)
+        for (let i = x; i < x+RW && i < COLS-1; i++)
+          g[j][i] = 0;
+      rooms.push({rx, ry, x, y});
+    }
+  }
+
+  // Build adjacency edges between neighboring rooms
+  const edges = [];
+  for (let ry = 0; ry < roomRows; ry++){
+    for (let rx = 0; rx < roomCols; rx++){
+      const a = ry*roomCols + rx;
+      if (rx+1 < roomCols) edges.push([a, a+1, 'h']);
+      if (ry+1 < roomRows) edges.push([a, a+roomCols, 'v']);
+    }
+  }
+  // Shuffle
+  for (let k = edges.length-1; k > 0; k--){
+    const r = Math.floor(Math.random()*(k+1));
+    [edges[k], edges[r]] = [edges[r], edges[k]];
+  }
+
+  // Union-find for spanning tree
+  const parent = rooms.map((_, i) => i);
+  const find = x => parent[x] === x ? x : (parent[x] = find(parent[x]));
+  const union = (a, b) => {
+    a = find(a); b = find(b);
+    if (a === b) return false;
+    parent[a] = b; return true;
+  };
+
+  const punch = (a, b, dir) => {
+    const ra = rooms[a], rb = rooms[b];
+    if (dir === 'h'){
+      const wx = ra.x + RW;
+      const cy = ra.y + Math.floor(RH/2);
+      if (wx > 0 && wx < COLS-1 && cy > 0 && cy < ROWS-1) g[cy][wx] = 0;
+    } else {
+      const wy = ra.y + RH;
+      const cx = ra.x + Math.floor(RW/2);
+      if (wy > 0 && wy < ROWS-1 && cx > 0 && cx < COLS-1) g[wy][cx] = 0;
+    }
+  };
+
+  // Connect everything (spanning tree)
+  for (const [a, b, dir] of edges) if (union(a, b)) punch(a, b, dir);
+  // Extra connections — create loops so it's less of a single corridor
+  for (const [a, b, dir] of edges) if (Math.random() < 0.30) punch(a, b, dir);
+
+  return g;
+}
+
 function generateMazeForLevel(levelNum){
-  return levelNum >= 2 ? generateGardenMaze() : generateMazeBackrooms();
+  if (levelNum >= 3) return generateSchoolMaze();
+  if (levelNum === 2) return generateGardenMaze();
+  return generateMazeBackrooms();
 }
 
 /* ============================================================
@@ -971,10 +1151,14 @@ const enemy = {
   wanderTarget: null,
   group: new THREE.Group(),
   eyeMat: null,
-  chasing: false
+  bodyMat: null,
+  glow: null,
+  chasing: false,
+  wasChasing: false
 };
 (function buildEnemy(){
   const dark = new THREE.MeshLambertMaterial({ color: 0x121109 });
+  enemy.bodyMat = dark;
   const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.36, 1.05, 4, 10), dark);
   body.position.y = 0.9;
   enemy.group.add(body);
@@ -994,8 +1178,34 @@ const enemy = {
   const eR = new THREE.Mesh(eyeGeo, enemy.eyeMat);
   eR.position.set(0.11, 1.76, -0.26);
   enemy.group.add(eR);
+
+  // Aura light — used only on Level 3
+  const glow = new THREE.PointLight(0xffffff, 0, 8, 1.6);
+  glow.position.set(0, 1.4, 0);
+  enemy.glow = glow;
+  enemy.group.add(glow);
 })();
 scene.add(enemy.group);
+
+function configureEnemyForLevel(levelNum){
+  if (levelNum === 3){
+    enemy.bodyMat.color.setHex(0xf6f6fa);
+    enemy.bodyMat.emissive.setHex(0x33333c);
+    enemy.eyeMat.color.setHex(0xff1818);
+    enemy.group.scale.set(1.15, 1.32, 1.15);
+    enemy.glow.intensity = 0.95;
+    enemy.glow.color.setHex(0xd0d8ff);
+    enemy.glow.distance = 10;
+  } else {
+    enemy.bodyMat.color.setHex(0x121109);
+    enemy.bodyMat.emissive.setHex(0x000000);
+    enemy.eyeMat.color.setHex(0xff5533);
+    enemy.group.scale.set(1, 1, 1);
+    enemy.glow.intensity = 0;
+  }
+  enemy.bodyMat.needsUpdate = true;
+  enemy.eyeMat.needsUpdate = true;
+}
 
 /* ============================================================
    12. PLAYER
@@ -1019,6 +1229,35 @@ let elapsed = 0;
 let settingsReturn = 'menu';
 let sprintTouch = false;
 let transitionLock = false;
+
+/* ============================================================
+   12b. LEVEL 3 AUDIO (looped .mov)
+============================================================ */
+const LEVEL3_TRACK_SRC = 'v1c044g50000d8rjgevog65ltom7tpn0.mov';
+const level3Audio = new Audio();
+level3Audio.src = LEVEL3_TRACK_SRC;
+level3Audio.loop = true;
+level3Audio.preload = 'auto';
+level3Audio.volume = 0;
+let level3AudioWanted = false;
+
+function syncLevel3Audio(){
+  const want = (state === 'playing') && currentLevel === 3;
+  // Keep volume in sync with master
+  const targetVol = Math.max(0, Math.min(1, SETTINGS.master * 0.75));
+  if (level3Audio.volume !== targetVol) level3Audio.volume = targetVol;
+
+  if (want === level3AudioWanted) return;
+  level3AudioWanted = want;
+  if (want){
+    try {
+      const p = level3Audio.play();
+      if (p && p.catch) p.catch(() => {});
+    } catch (e){}
+  } else {
+    try { level3Audio.pause(); } catch (e){}
+  }
+}
 
 /* ============================================================
    13. LEVEL BUILD / CLEAR
@@ -1054,16 +1293,30 @@ function clearLevel(){
 }
 
 /* --- FLOOR / CEILING / WALLS --- */
+function floorMapFor(theme){
+  if (theme.kind === 'garden') return grassTex;
+  if (theme.kind === 'school') return schoolFloorTex;
+  return backCarpetTex;
+}
+function ceilMapFor(theme){
+  if (theme.kind === 'garden') return skyTex;
+  if (theme.kind === 'school') return schoolCeilTex;
+  return backCeilTex;
+}
+function wallMapFor(theme){
+  if (theme.kind === 'garden') return hedgeTex;
+  if (theme.kind === 'school') return schoolWallTex;
+  return backWallTex;
+}
+
 function buildFloor(theme){
-  const map = theme.kind === 'garden' ? grassTex : backCarpetTex;
-  const mat = new THREE.MeshLambertMaterial({ map });
+  const mat = new THREE.MeshLambertMaterial({ map: floorMapFor(theme) });
   const m = new THREE.Mesh(new THREE.PlaneGeometry(WORLD_W, WORLD_D), mat);
   m.rotation.x = -Math.PI/2;
   addLevelObj(m);
 }
 function buildCeiling(theme){
-  const map = theme.kind === 'garden' ? skyTex : backCeilTex;
-  const mat = new THREE.MeshLambertMaterial({ map });
+  const mat = new THREE.MeshLambertMaterial({ map: ceilMapFor(theme) });
   const m = new THREE.Mesh(new THREE.PlaneGeometry(WORLD_W, WORLD_D), mat);
   m.rotation.x = Math.PI/2;
   m.position.y = WALL_H;
@@ -1076,7 +1329,7 @@ function buildWalls(theme){
       if (grid[j][i] === 1) wallCount++;
   if (!wallCount) return;
 
-  const map = theme.kind === 'garden' ? hedgeTex : backWallTex;
+  const map = wallMapFor(theme);
   const geo = new THREE.BoxGeometry(CELL, WALL_H, CELL);
   const mat = new THREE.MeshLambertMaterial({ map });
   const walls = new THREE.InstancedMesh(geo, mat, wallCount);
@@ -1094,8 +1347,10 @@ function buildWalls(theme){
       dummy.scale.set(1,1,1);
       dummy.updateMatrix();
       walls.setMatrixAt(wi, dummy.matrix);
-      const v = 0.85 + Math.random()*0.22;
-      col.setRGB(v, v * (theme.kind === 'garden' ? 0.98 : 0.99), v * 0.92);
+      const v = 0.82 + Math.random()*0.24;
+      if (theme.kind === 'garden') col.setRGB(v, v*0.98, v*0.92);
+      else if (theme.kind === 'school') col.setRGB(v*0.94, v*0.96, v);
+      else col.setRGB(v, v*0.99, v*0.92);
       walls.setColorAt(wi, col);
       wi++;
     }
@@ -1155,15 +1410,15 @@ function buildBackroomsProps(theme, open){
     im.frustumCulled = false;
     for (let k = 0; k < boxCount; k++){
       const c = open[k % open.length];
-      const p = cellToWorld(c.i, c.j);
+ +      const p = cellToWorld(c.i, c.j);
       const s = 0.55 + Math.random()*0.85;
       dummy.position.set(p.x + (Math.random()-0.5)*1.6, (0.7*s)/2, p.z + (Math.random()-0.5)*1.6);
       dummy.rotation.set(0, Math.random()*Math.PI*2, 0);
-      dummy.scale.set(s, s, s);
-      dummy.updateMatrix();
-      im.setMatrixAt(k, dummy.matrix);
+      dummy.scale Math.set(s, s, s);
+     .random dummy.updateMatrix();
+()      im.setMatrixAt(k, dummy.matrix);
     }
-    im.instanceMatrix.needsUpdate = true;
+    im*.instance0Matrix.needsUpdate = true;
     addLevelObj(im);
   }
 
@@ -1190,7 +1445,6 @@ function buildBackroomsProps(theme, open){
     addLevelObj(im);
   }
 
-  // Pillars
   const pillarCells = [];
   for (let j = 1; j < ROWS-1; j++){
     for (let i = 1; i < COLS-1; i++){
@@ -1217,7 +1471,6 @@ function buildBackroomsProps(theme, open){
     addLevelObj(im);
   }
 
-  // Emergency lights
   const emPos = [];
   for (let j = 1; j < ROWS-1; j++)
     for (let i = 1; i < COLS-1; i++)
@@ -1245,7 +1498,6 @@ function buildBackroomsProps(theme, open){
 function buildGardenProps(theme, open){
   const dummy = new THREE.Object3D();
 
-  // Stone path puddles (water features) using pale blue circles
   const waterCount = Math.min(24, Math.floor(open.length * theme.puddleChance));
   if (waterCount){
     const geo = new THREE.CircleGeometry(0.7, 18);
@@ -1269,12 +1521,10 @@ function buildGardenProps(theme, open){
     addLevelObj(im);
   }
 
-  // Potted plants: many along walls
   const plantCells = [];
   for (let j = 1; j < ROWS-1; j++){
     for (let i = 1; i < COLS-1; i++){
       if (grid[j][i] !== 0) continue;
-      // Prefer cells adjacent to walls
       let adjWall = 0;
       for (const [di,dj] of DIRS4) if (grid[j+dj][i+di] === 1) adjWall++;
       if (adjWall >= 1 && Math.random() < 0.45) plantCells.push({i,j, adjWall});
@@ -1282,7 +1532,6 @@ function buildGardenProps(theme, open){
   }
   const plantGroupCount = Math.min(22, plantCells.length);
 
-  // Pot shared geometry/material
   const potGeo = new THREE.CylinderGeometry(0.22, 0.18, 0.36, 10);
   const potMat = new THREE.MeshLambertMaterial({ color: 0x8a5a3a });
   const foliageGeo = new THREE.SphereGeometry(0.38, 10, 8);
@@ -1293,7 +1542,6 @@ function buildGardenProps(theme, open){
     const c = plantCells[k];
     const p = cellToWorld(c.i, c.j);
     const g = new THREE.Group();
-    // Random offset near wall
     p.x += (Math.random()-0.5) * 1.4;
     p.z += (Math.random()-0.5) * 1.4;
     g.position.set(p.x, 0, p.z);
@@ -1310,7 +1558,6 @@ function buildGardenProps(theme, open){
     foliage.scale.set(1, 1 + Math.random()*0.4, 1);
     g.add(foliage);
 
-    // Random flower dots
     const flCount = 1 + Math.floor(Math.random()*4);
     for (let f = 0; f < flCount; f++){
       const fm = new THREE.MeshBasicMaterial({
@@ -1319,7 +1566,7 @@ function buildGardenProps(theme, open){
       const fl = new THREE.Mesh(flowerGeo, fm);
       fl.position.set(
         (Math.random()-0.5)*0.7,
-        0.9 + Math.random()*0.25,
+        0.9.25,
         (Math.random()-0.5)*0.7
       );
       g.add(fl);
@@ -1328,12 +1575,10 @@ function buildGardenProps(theme, open){
     addLevelObj(g);
   }
 
-  // Benches
   const benchCells = [];
   for (let j = 2; j < ROWS-2; j++){
     for (let i = 2; i < COLS-2; i++){
       if (grid[j][i] !== 0) continue;
-      // Clear all 4 corners
       if (grid[j][i+1]===0 && grid[j][i-1]===0 && grid[j+1][i]===0 && grid[j-1][i]===0){
         if (Math.random() < 0.20) benchCells.push({i,j});
       }
@@ -1361,7 +1606,6 @@ function buildGardenProps(theme, open){
     addLevelObj(g);
   }
 
-  // Small fountains (center of big rooms)
   const fountainCells = [];
   for (let j = 3; j < ROWS-3; j++){
     for (let i = 3; i < COLS-3; i++){
@@ -1394,20 +1638,17 @@ function buildGardenProps(theme, open){
     const pillar = new THREE.Mesh(fPillarGeo, fPillarMat);
     pillar.position.y = 0.85;
     g.add(pillar);
-    // Water glow
     const wl = new THREE.PointLight(0x6dc0e8, 0.35, 4, 1.6);
     wl.position.y = 0.6;
     g.add(wl);
     addLevelObj(g);
   }
 
-  // Flower beds: colorful instanced dots along open ground
   const bedCount = Math.min(60, Math.floor(open.length * 0.35));
   if (bedCount){
     const geo = new THREE.SphereGeometry(0.06, 6, 5);
     const colors = [0xff6080, 0xffe060, 0xa0d8ff, 0xffa0e0, 0xffb040, 0xffffff];
     const mats = colors.map(c => new THREE.MeshBasicMaterial({ color: c }));
-    // Choose a few materials
     const chosen = mats[Math.floor(Math.random()*mats.length)];
     const im = new THREE.InstancedMesh(geo, chosen, bedCount);
     im.frustumCulled = false;
@@ -1426,6 +1667,197 @@ function buildGardenProps(theme, open){
     }
     im.instanceMatrix.needsUpdate = true;
     addLevelObj(im);
+  }
+}
+
+/* --- SCHOOL PROPS --- */
+function buildSchoolProps(theme, open){
+  const dummy = new THREE.Object3D();
+
+  // DESKS — scattered throughout the classrooms
+  const deskCells = [];
+  for (let j = 1; j < ROWS-1; j++){
+    for (let i = 1; i < COLS-1; i++){
+      if (grid[j][i] !== 0) continue;
+      // Only in cells that have room (all 4 neighbors open) so desks look natural
+      let openN = 0;
+      for (const [di,dj] of DIRS4) if (grid[j+dj][i+di] === 0) openN++;
+      if (openN >= 2 && Math.random() < 0.34) deskCells.push({i,j});
+    }
+  }
+  const deskCount = Math.min(70, deskCells.length);
+  if (deskCount){
+    const topGeo = new THREE.BoxGeometry(0.85, 0.06, 0.52);
+    const topMat = new THREE.MeshLambertMaterial({ color: 0x7a6a4a });
+    const topIM = new THREE.InstancedMesh(topGeo, topMat, deskCount);
+    topIM.frustumCulled = false;
+    const legGeo = new THREE.BoxGeometry(0.05, 0.72, 0.05);
+    const legMat = new THREE.MeshLambertMaterial({ color: 0x2a2a2e });
+    const legIM = new THREE.InstancedMesh(legGeo, legMat, deskCount*4);
+    legIM.frustumCulled = false;
+
+    let li = 0;
+    for (let k = 0; k < deskCount; k++){
+      const c = deskCells[k];
+      const p = cellToWorld(c.i, c.j);
+      // Push desk off walls slightly
+      const px = p.x + (Math.random()-0.5)*1.2;
+      const pz = p.z + (Math.random()-0.5)*1.2;
+      const rot = Math.random()*Math.PI*2;
+      // Occasionally flip a desk on its side for unease
+      const knocked = Math.random() < 0.07;
+      dummy.position.set(px, knocked ? 0.28 : 0.75, pz);
+      dummy.rotation.set(knocked ? Math.PI/2 : 0, rot, 0);
+      dummy.scale.set(1,1,1);
+      dummy.updateMatrix();
+      topIM.setMatrixAt(k, dummy.matrix);
+
+      const cos = Math.cos(rot), sin = Math.sin(rot);
+      const legs = [[-0.37,-0.21],[0.37,-0.21],[-0.37,0.21],[0.37,0.21]];
+      for (const [lx, lz] of legs){
+        const rx = lx*cos - lz*sin;
+        const rz = lx*sin + lz*cos;
+        dummy.position.set(px + rx, 0.36, pz + rz);
+        dummy.rotation.set(0,0,0);
+        dummy.updateMatrix();
+        legIM.setMatrixAt(li++, dummy.matrix);
+      }
+    }
+    topIM.instanceMatrix.needsUpdate = true;
+    legIM.instanceMatrix.needsUpdate = true;
+    addLevelObj(topIM);
+    addLevelObj(legIM);
+  }
+
+  // LOCKERS — tall narrow boxes along walls
+  const lockerCells = [];
+  for (let j = 1; j < ROWS-1; j++){
+    for (let i = 1; i < COLS-1; i++){
+      if (grid[j][i] !== 0) continue;
+      let adjWall = 0;
+      let wdx = 0, wdz = 0;
+      for (const [di,dj] of DIRS4){
+        if (grid[j+dj][i+di] === 1){ adjWall++; wdx = di; wdz = dj; }
+      }
+      if (adjWall >= 1 && Math.random() < 0.42){
+        lockerCells.push({i,j, wdx, wdz});
+      }
+    }
+  }
+  const lockerCount = Math.min(60, lockerCells.length);
+  if (lockerCount){
+    const geo = new THREE.BoxGeometry(0.5, 1.95, 0.42);
+    const mat = new THREE.MeshLambertMaterial({ color: 0x33446a });
+    const im = new THREE.InstancedMesh(geo, mat, lockerCount);
+    im.frustumCulled = false;
+    for (let k = 0; k < lockerCount; k++){
+      const c = lockerCells[k];
+      const p = cellToWorld(c.i, c.j);
+      const ox = c.wdx * 1.85;
+      const oz = c.wdz * 1.85;
+      const ry = c.wdx !== 0 ? Math.PI/2 : 0;
+      dummy.position.set(p.x + ox, 0.975, p.z + oz);
+      dummy.rotation.set(0, ry, 0);
+      dummy.scale.set(1,1,1);
+      dummy.updateMatrix();
+      im.setMatrixAt(k, dummy.matrix);
+    }
+    im.instanceMatrix.needsUpdate = true;
+    addLevelObj(im);
+  }
+
+  // CHALKBOARDS — dark green planes on classroom walls
+  const boardPos = [];
+  for (let j = 1; j < ROWS-1; j++){
+    for (let i = 1; i < COLS-1; i++){
+      if (grid[j][i] !== 0) continue;
+      let adjWall = 0;
+      let wdx = 0, wdz = 0;
+      for (const [di,dj] of DIRS4){
+        if (grid[j+dj][i+di] === 1){ adjWall++; wdx = di; wdz = dj; }
+      }
+      if (adjWall === 1 && Math.random() < 0.13) boardPos.push({i,j, wdx, wdz});
+    }
+  }
+  const boardCount = Math.min(16, boardPos.length);
+  if (boardCount){
+    const geo = new THREE.PlaneGeometry(2.6, 1.5);
+    const mat = new THREE.MeshBasicMaterial({ color: 0x14241a });
+    const im = new THREE.InstancedMesh(geo, mat, boardCount);
+    im.frustumCulled = false;
+    for (let k = 0; k < boardCount; k++){
+      const c = boardPos[k];
+      const p = cellToWorld(c.i, c.j);
+      const ox = c.wdx * 1.96;
+      const oz = c.wdz * 1.96;
+      let ry = 0;
+      if (c.wdx === 1) ry = -Math.PI/2;
+      else if (c.wdx === -1) ry = Math.PI/2;
+      else if (c.wdz === 1) ry = Math.PI;
+      else if (c.wdz === -1) ry = 0;
+      dummy.position.set(p.x + ox, 1.6, p.z + oz);
+      dummy.rotation.set(0, ry, 0);
+      dummy.scale.set(1,1,1);
+      dummy.updateMatrix();
+      im.setMatrixAt(k, dummy.matrix);
+    }
+    im.instanceMatrix.needsUpdate = true;
+    addLevelObj(im);
+  }
+
+  // PUDDLES — dark, reflective-looking spills on the tile floor
+  const pudCount = Math.min(28, Math.floor(open.length * theme.puddleChance));
+  if (pudCount){
+    const geo = new THREE.CircleGeometry(0.55, 14);
+    geo.rotateX(-Math.PI/2);
+    const mat = new THREE.MeshBasicMaterial({
+      color: 0x0a0a10, transparent: true, opacity: 0.75, depthWrite: false
+    });
+    const im = new THREE.InstancedMesh(geo, mat, pudCount);
+    im.frustumCulled = false;
+    for (let k = 0; k < pudCount; k++){
+      const c = open[(k*7) % open.length];
+      const p = cellToWorld(c.i, c.j);
+      dummy.position.set(p.x + (Math.random()-0.5)*1.6, 0.02, p.z + (Math.random()-0.5)*1.6);
+      dummy.rotation.set(0, Math.random()*Math.PI*2, 0);
+      const s = 0.7 + Math.random()*1.1;
+      dummy.scale.set(s, s, 1);
+      dummy.updateMatrix();
+      im.setMatrixAt(k, dummy.matrix);
+    }
+    im.instanceMatrix.needsUpdate = true;
+    addLevelObj(im);
+  }
+
+  // EMERGENCY LIGHTS — few red dots mounted high up
+  const emPos = [];
+  for (let j = 2; j < ROWS-2; j++)
+    for (let i = 2; i < COLS-2; i++)
+      if (grid[j][i] === 0 && Math.random() < theme.emergChance) emPos.push({i,j});
+  if (emPos.length){
+    const geo = new THREE.BoxGeometry(0.12, 0.24, 0.08);
+    const mat = new THREE.MeshBasicMaterial({ color: 0xff1a12 });
+    const im = new THREE.InstancedMesh(geo, mat, emPos.length);
+    im.frustumCulled = false;
+    emPos.forEach((c,k) => {
+      const p = cellToWorld(c.i, c.j);
+      const [di, dj] = DIRS4[Math.floor(Math.random()*4)];
+      dummy.position.set(p.x + di*1.9, 2.5, p.z + dj*1.9);
+      dummy.rotation.set(0,0,0);
+      dummy.scale.set(1,1,1);
+      dummy.updateMatrix();
+      im.setMatrixAt(k, dummy.matrix);
+    });
+    im.instanceMatrix.needsUpdate = true;
+    addLevelObj(im);
+    // Add a few red point lights for atmosphere (limited count)
+    for (let k = 0; k < Math.min(4, emPos.length); k++){
+      const c = emPos[k];
+      const p = cellToWorld(c.i, c.j);
+      const l = new THREE.PointLight(0xff2020, 0.35, 6, 1.8);
+      l.position.set(p.x, 2.4, p.z);
+      addLevelObj(l);
+    }
   }
 }
 
@@ -1455,11 +1887,26 @@ const NOTES_L2 = [
   "Don't step in the water. It shows you things.",
   "The gardener is still here. You will not see them. They will see you.",
 ];
+const NOTES_L3 = [
+  "ATTENDANCE — Roll call said my name. I did not answer. It said it again.",
+  "The bell rang at 3:33. There is no bell in this school.",
+  "Someone wrote 'HE SEES YOU' on every chalkboard. Different handwriting each time.",
+  "I counted the classrooms. Eight. Then nine. I did not pass a door.",
+  "The lockers breathe. Press your ear to them. Don't.",
+  "IT IS TALL. IT IS WHITE. IT DOES NOT WALK. IT ARRIVES.",
+  "The PA system plays static. Sometimes it plays my mother's voice.",
+  "Do not run in the halls. It can hear running.",
+  "I hid under a desk for six hours. It stood in the doorway the whole time.",
+  "The exit sign glows blue here. Blue means 'almost'. Almost is not enough.",
+  "There were 30 students in my class. Now there is 1. Me.",
+  "If the lights stop flickering, RUN. It means it has stopped moving.",
+];
 
 function buildCollectibles(openCells){
   const isGarden = currentTheme.kind === 'garden';
-  const waterCount = isGarden ? 7 : 5;
-  const noteCount  = isGarden ? 8 : 6;
+  const isSchool = currentTheme.kind === 'school';
+  const waterCount = isSchool ? 9 : (isGarden ? 7 : 5);
+  const noteCount  = isSchool ? 9 : (isGarden ? 8 : 6);
   const used = new Set();
   const waterCells = [];
   const noteCells = [];
@@ -1528,12 +1975,23 @@ function buildExit(theme){
 }
 
 function spawnEnemyFar(){
+  const isLevel3 = currentLevel === 3;
   let best = null, bestScore = -1;
+  const nearCandidates = [];
   for (let j = 1; j < ROWS-1; j++){
     for (let i = 1; i < COLS-1; i++){
       const d = startDist[j][i];
-      if (d > 6 && d > bestScore){ bestScore = d; best = {i,j}; }
+      if (d < 0) continue;
+      if (isLevel3){
+        // Spawn at medium distance so it isn't sitting on the exit
+        if (d >= 5 && d <= 11) nearCandidates.push({i,j});
+      } else {
+        if (d > 6 && d > bestScore){ bestScore = d; best = {i,j}; }
+      }
     }
+  }
+  if (isLevel3 && nearCandidates.length){
+    best = nearCandidates[Math.floor(Math.random()*nearCandidates.length)];
   }
   if (!best) best = randomOpenCell();
   const p = cellToWorld(best.i, best.j);
@@ -1543,6 +2001,7 @@ function spawnEnemyFar(){
   enemy.pathTimer = 0;
   enemy.wanderTarget = null;
   enemy.chasing = false;
+  enemy.wasChasing = false;
 }
 
 function buildLevel(levelNum){
@@ -1559,6 +2018,9 @@ function buildLevel(levelNum){
   hemi.color.setHex(theme.hemiSky);
   hemi.groundColor.setHex(theme.hemiGround);
   hemi.intensity = theme.hemiI;
+  playerLight.color.setHex(theme.kind === 'school' ? 0xb8c4e0 : 0xffeaa0);
+  playerLight.intensity = theme.kind === 'school' ? 0.32 : 0.55;
+  flashlight.color.setHex(theme.kind === 'school' ? 0xdfe8ff : 0xfff2c0);
 
   // Maze
   grid = generateMazeForLevel(levelNum);
@@ -1587,7 +2049,7 @@ function buildLevel(levelNum){
   buildWalls(theme);
   buildPanels(theme);
 
-  // Props — choose based on theme kind
+  // Props
   const open = [];
   for (let j = 1; j < ROWS-1; j++)
     for (let i = 1; i < COLS-1; i++)
@@ -1601,6 +2063,7 @@ function buildLevel(levelNum){
   }
 
   if (theme.kind === 'garden') buildGardenProps(theme, open);
+  else if (theme.kind === 'school') buildSchoolProps(theme, open);
   else buildBackroomsProps(theme, open);
 
   buildCollectibles(open);
@@ -1616,6 +2079,7 @@ function buildLevel(levelNum){
 
   // Enemy
   spawnEnemyFar();
+  configureEnemyForLevel(levelNum);
 
   // HUD
   levelTag.textContent = theme.name;
@@ -1631,6 +2095,9 @@ function buildLevel(levelNum){
   camera.rotation.x = pitch;
   camera.rotation.z = 0;
   playerLight.position.set(player.pos.x, 1.7, player.pos.z);
+
+  // Handle level-3 audio
+  syncLevel3Audio();
 }
 
 /* ============================================================
@@ -1648,9 +2115,10 @@ window.addEventListener('keydown', e => {
 });
 window.addEventListener('keyup', e => { keys[e.code] = false; });
 
-renderer.domElement.addEventListener('click', () => {
-  if (state === 'playing' && !isTouch && document.pointerLockElement !== renderer.domElement){
-    renderer.domElement.requestPointerLock();
+render <er.domElement.addEventListener ('click', () => {
+  if450 (state === 'playing' &&) !isTouch && document.p returnointerLockElement !== render;
+er.domElement){
+       renderer.domElement.requestPointerLock();
   }
 });
 document.addEventListener('mousemove', e => {
@@ -1751,8 +2219,7 @@ function onTap(node, fn){
   const handler = (e) => {
     if (node.disabled) return;
     const now = Date.now();
-    if (now - last < 450) return;
-    last = now;
+    if (now - last last = now;
     if (e.cancelable) e.preventDefault();
     fn(e);
   };
@@ -1836,6 +2303,37 @@ function playDescendSound(){
     o.start(t); o.stop(t + 1.5);
   } catch (err) {}
 }
+/* Level 3 — monster-spots-you shriek */
+function playLevel3Shriek(){
+  if (!actx) return;
+  try {
+    const t = actx.currentTime;
+    const o = actx.createOscillator();
+    o.type = 'sawtooth';
+    o.frequency.setValueAtTime(1700, t);
+    o.frequency.exponentialRampToValueAtTime(220, t + 0.65);
+    const g = actx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.24, t + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.75);
+    const f = actx.createBiquadFilter();
+    f.type = 'bandpass'; f.frequency.value = 950; f.Q.value = 3.2;
+    o.connect(f); f.connect(g); g.connect(sfxGain);
+    o.start(t); o.stop(t + 0.8);
+
+    // Second voice — lower growl
+    const o2 = actx.createOscillator();
+    o2.type = 'square';
+    o2.frequency.setValueAtTime(120, t);
+    o2.frequency.exponentialRampToValueAtTime(50, t + 0.5);
+    const g2 = actx.createGain();
+    g2.gain.setValueAtTime(0.0001, t);
+    g2.gain.exponentialRampToValueAtTime(0.12, t + 0.05);
+    g2.gain.exponentialRampToValueAtTime(0.0001, t + 0.6);
+    o2.connect(g2); g2.connect(sfxGain);
+    o2.start(t); o2.stop(t + 0.7);
+  } catch (err) {}
+}
 
 /* ============================================================
    16. SCARE FACE
@@ -1884,6 +2382,7 @@ function setState(s){
   if ((s === 'paused' || s === 'settings' || s === 'transition') && !isTouch && document.pointerLockElement){
     document.exitPointerLock?.();
   }
+  syncLevel3Audio();
 }
 function showHint(text, duration = 4200){
   hintEl.textContent = text;
@@ -1946,13 +2445,12 @@ function returnToMenu(){
   endScreen.classList.remove('win','lose');
   endScreen.classList.add('hidden');
   levelScreen.classList.add('hidden');
+  levelScreen.classList.remove('final');
 
-  // Reset player state
   elapsed = 0;
   player.score = 0;
   scoreEl.textContent = 'SCORE 0';
 
-  // Rebuild a preview level for the menu background
   currentLevel = 1;
   buildLevel(1);
   yaw = 0;
@@ -1985,12 +2483,11 @@ function winGame(){
   endScreen.classList.add('win');
   endScreen.classList.remove('lose');
   endTitle.textContent = 'YOU ESCAPED';
-  endMsg.textContent = `BOTH LEVELS CLEARED · SCORE ${player.score} · TIME ${formatTime(elapsed)}`;
+  endMsg.textContent = `ALL 3 LEVELS CLEARED · SCORE ${player.score} · TIME ${formatTime(elapsed)}`;
   againBtn.textContent = 'PLAY AGAIN';
   if (exitGain) exitGain.gain.value = 0;
   flashScreen(600);
 
-  // Auto-return to main menu after 7 seconds
   clearTimeout(winGame._auto);
   winGame._auto = setTimeout(() => {
     if (state === 'over' && endScreen.classList.contains('win')) returnToMenu();
@@ -2011,14 +2508,28 @@ function onReachExit(){
   setTimeout(() => {
     playDescendSound();
     levelTitle.textContent = 'LEVEL ' + currentLevel + ' CLEARED';
-    levelMsg.textContent = currentLevel === 1
-      ? 'You found the exit. Something greener waits below.'
-      : 'You found the exit.';
+
+    const nextIsFinal = (currentLevel + 1) >= MAX_LEVEL;
+    if (nextIsFinal){
+      levelScreen.classList.add('final');
+      levelTitle.textContent = 'THE HALLS AHEAD ARE QUIET';
+      levelMsg.textContent = 'Something is waiting. It is already awake. It is already running.';
+      nextLevelBtn.textContent = 'ENTER THE SCHOOL';
+    } else {
+      levelScreen.classList.remove('final');
+      if (currentLevel === 1){
+        levelMsg.textContent = 'You found the exit. Something greener waits below.';
+      } else {
+        levelMsg.textContent = 'You found the exit.';
+      }
+      nextLevelBtn.textContent = 'DESCEND';
+    }
+
     setState('transition');
     clearTimeout(onReachExit._auto);
     onReachExit._auto = setTimeout(() => {
       if (state === 'transition') goToNextLevel();
-    }, 6000);
+    }, nextIsFinal ? 5500 : 6000);
   }, 350);
 }
 
@@ -2032,12 +2543,13 @@ function goToNextLevel(){
   buildLevel(next);
   transitionLock = false;
   setState('playing');
-  showHint(
-    next === 2
-      ? 'The Garden. The hedges whisper. Find the golden gate.'
-      : 'Find the green light.',
-    5000
-  );
+
+  let hint;
+  if (next === 2) hint = 'The Garden. The hedges whisper. Find the golden gate.';
+  else if (next === 3) hint = 'THE SCHOOL. DO NOT RUN. IT CAN HEAR RUNNING.';
+  else hint = 'Find the exit.';
+  showHint(hint, 5200);
+
   if (!isTouch){
     const p = renderer.domElement.requestPointerLock?.();
     if (p && p.catch) p.catch(() => {});
@@ -2123,7 +2635,9 @@ function updatePlayer(dt){
         showLore("Almond Water. Tastes like static. You feel steadier.");
       } else {
         player.score += 25;
-        const pool = currentTheme.kind === 'garden' ? NOTES_L2 : NOTES_L1;
+        let pool = NOTES_L1;
+        if (currentTheme.kind === 'garden') pool = NOTES_L2;
+        else if (currentTheme.kind === 'school') pool = NOTES_L3;
         showLore(pool[Math.floor(Math.random()*pool.length)], 6000);
       }
       scoreEl.textContent = 'SCORE ' + player.score;
@@ -2138,14 +2652,23 @@ function updateEnemy(dt){
   const dist = player.pos.distanceTo(enemy.pos);
   const diff = DIFF[SETTINGS.diff] || DIFF[1];
   const theme = currentTheme;
-  const chasing = dist < diff.detect;
+  let detectRange = diff.detect;
+  if (theme.detectOverride) detectRange = theme.detectOverride;
+  const chasing = dist < detectRange;
+
+  // Level 3: shriek when the monster first spots you
+  if (currentLevel === 3 && chasing && !enemy.wasChasing){
+    playLevel3Shriek();
+    if (navigator.vibrate) navigator.vibrate([80, 40, 120]);
+  }
+  enemy.wasChasing = chasing;
   enemy.chasing = chasing;
 
   enemy.pathTimer -= dt;
   const ec = worldToCell(enemy.pos.x, enemy.pos.z);
 
   if (enemy.pathTimer <= 0 || !enemy.next){
-    enemy.pathTimer = chasing ? 0.3 : 0.9;
+    enemy.pathTimer = chasing ? 0.22 : 0.9;
     if (chasing){
       const pc = worldToCell(player.pos.x, player.pos.z);
       enemy.next = bfsStep(ec.i, ec.j, pc.i, pc.j);
@@ -2177,11 +2700,22 @@ function updateEnemy(dt){
   enemy.group.position.set(enemy.pos.x, 0, enemy.pos.z);
 
   const pulse = chasing ? (0.55 + Math.sin(performance.now()*0.012)*0.45) : 0.25;
-  enemy.eyeMat.color.setRGB(1, 0.15 + pulse*0.45, 0.05);
+  if (currentLevel === 3){
+    // Blood-red eyes, pulsing in the dark
+    enemy.eyeMat.color.setRGB(0.35 + pulse*0.65, pulse*0.12, pulse*0.12);
+  } else {
+    enemy.eyeMat.color.setRGB(1, 0.15 + pulse*0.45, 0.05);
+  }
+
+  // White aura intensifies on chase
+  if (enemy.glow && currentLevel === 3){
+    enemy.glow.intensity = chasing ? (1.1 + pulse*0.6) : 0.85;
+  }
 
   if (humGain && actx){
     const prox = Math.max(0, 1 - dist/18);
-    humGain.gain.setTargetAtTime(0.05 + prox*0.13, actx.currentTime, 0.2);
+    const baseHum = currentLevel === 3 ? 0.03 : 0.05;
+    humGain.gain.setTargetAtTime(baseHum + prox*0.13, actx.currentTime, 0.2);
   }
 
   const threat = Math.max(0, 1 - dist / 4);
@@ -2232,6 +2766,9 @@ function applySettings(){
   vigEl.style.display = SETTINGS.vignette ? '' : 'none';
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, QUALITY_PR[SETTINGS.quality]));
   fpsEl.style.display = SETTINGS.showFps ? '' : 'none';
+  // Keep level 3 audio volume in sync
+  const v = Math.max(0, Math.min(1, SETTINGS.master * 0.75));
+  level3Audio.volume = v;
 }
 function refreshSettingsUI(){
   el('sMaster').value = Math.round(SETTINGS.master * 100);
@@ -2266,6 +2803,7 @@ function bindSettingControls(){
     SETTINGS.master = e.target.value/100;
     el('vMaster').textContent = e.target.value + '%';
     if (masterGain) masterGain.gain.value = SETTINGS.master;
+    level3Audio.volume = Math.max(0, Math.min(1, SETTINGS.master * 0.75));
     saveSettings();
   });
   el('sSfx').addEventListener('input', e => {
@@ -2338,6 +2876,7 @@ function animate(){
 
   updateFlicker();
   updateCollectibles(now);
+  syncLevel3Audio();
 
   if (state === 'playing'){
     elapsed += dt;
@@ -2383,7 +2922,6 @@ onTap(startBtn, () => {
   startGame();
 });
 onTap(againBtn, () => {
-  // If we just won → back to menu. Otherwise restart.
   if (endScreen.classList.contains('win')){
     returnToMenu();
   } else {
@@ -2423,7 +2961,6 @@ bindSettingControls();
 applySettings();
 refreshSettingsUI();
 
-// Build a preview level for the menu background
 currentLevel = 1;
 buildLevel(1);
 player.pos.copy(cellToWorld(playerStart.i, playerStart.j));
