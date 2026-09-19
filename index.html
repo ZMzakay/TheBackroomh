@@ -439,7 +439,7 @@
 
 <script type="module">
 /* ============================================================
-   0. LOAD THREE.JS — parallel, minified, fast-fail
+   0. LOAD THREE.JS
 ============================================================ */
 const startBtn = document.getElementById('startBtn');
 const isTouch = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
@@ -566,9 +566,13 @@ const COLS = 31, ROWS = 31;
 const CELL = 5;
 const WALL_H = 3.2;
 const WORLD_W = COLS * CELL, WORLD_D = ROWS * CELL;
+const HALF_COLS = (COLS - 1) / 2;
+const HALF_ROWS = (ROWS - 1) / 2;
 const DIRS4 = [[1,0],[-1,0],[0,1],[0,-1]];
 const PAPERS_NEEDED = 7;
 const ENEMY_COUNT = 3;
+const TWO_PI = Math.PI * 2;
+const CAMERA_FAR = 65;
 
 /* ============================================================
    4. DOM
@@ -609,7 +613,7 @@ const paperCounterEl = el('paperCounter');
 if (isTouch) mobileBtns.classList.remove('hidden');
 
 /* ============================================================
-   5. TEXTURE FACTORY — lazy + cached
+   5. TEXTURE FACTORY
 ============================================================ */
 const texCache = Object.create(null);
 function tex(key, gen){
@@ -878,6 +882,8 @@ const getSchoolCeilTex  = () => tex('sc',  () => makeTexture(192, paintSchoolCei
    6. STATE
 ============================================================ */
 let grid = null;
+let wallMask = null;             // Uint8Array flat view for fast lookups
+let openCellCache = null;        // cached list of {i, j} open cells
 let startDist = null;
 let exitCell = { i: 1, j: 1 };
 const exitPos = new THREE.Vector3();
@@ -892,10 +898,8 @@ let papersCollected = 0;
 let exitDenyCooldown = false;
 
 /* ============================================================
-   7. UNIFIED MAZE GENERATOR — rooms, corridors, SPECIAL ROOMS
+   7. MAZE GENERATOR
 ============================================================ */
-
-// Carve a 1-wide (or wider) L-shaped corridor between (x1,y1) and (x2,y2)
 function carveCorridor(g, x1, y1, x2, y2, width){
   const hw = ((width || 1) / 2) | 0;
   if (Math.random() < 0.5){
@@ -923,7 +927,6 @@ function carveCorridor(g, x1, y1, x2, y2, width){
   }
 }
 
-// Pick a random already-open cell so carved features stay connected
 function randomOpenCellIn(g){
   const cells = [];
   for (let j = 1; j < ROWS-1; j++)
@@ -932,8 +935,6 @@ function randomOpenCellIn(g){
   if (!cells.length) return null;
   return cells[(Math.random()*cells.length)|0];
 }
-
-/* ---------- SPECIAL FEATURES (always anchored to an open cell) ---------- */
 
 function featLongCorridor(g){
   const seed = randomOpenCellIn(g);
@@ -976,7 +977,6 @@ function featGreatHall(g){
   const y = Math.max(1, Math.min(ROWS - h - 2, seed.j - (h/2|0)));
   for (let j = y; j < y+h; j++)
     for (let i = x; i < x+w; i++) g[j][i] = 0;
-  // Optional pillar grid for atmosphere
   if (Math.random() < 0.55){
     for (let py = y + 2; py < y + h - 1; py += 3)
       for (let px = x + 2; px < x + w - 1; px += 3)
@@ -1025,7 +1025,6 @@ function featCourtyard(g){
   const y = Math.max(1, Math.min(ROWS - size - 2, seed.j - (size/2|0)));
   for (let j = y; j < y+size; j++)
     for (let i = x; i < x+size; i++) g[j][i] = 0;
-  // Central obstacle — fountain-like feel
   if (Math.random() < 0.55){
     const cx = x + (size/2|0);
     const cy = y + (size/2|0);
@@ -1069,17 +1068,14 @@ function featLBend(g){
 
 const FEATURES = [featLongCorridor, featGreatHall, featCross, featDeadEnd, featCourtyard, featLBend];
 
-/* ---------- MAZE BUILDER ---------- */
 function generateMaze(levelNum){
   const g = Array.from({length: ROWS}, () => new Array(COLS).fill(1));
   const rooms = [];
 
-  // Tuning per level — scaled up for the larger grid
   const isSchool = levelNum === 3;
   const isGarden = levelNum === 2;
   const targetRooms = isSchool ? 42 : (isGarden ? 36 : 40);
 
-  // ---- 1. Place random rooms of varied shapes ----
   const attempts = targetRooms * 8;
   for (let a = 0; a < attempts && rooms.length < targetRooms; a++){
     const roll = Math.random();
@@ -1089,7 +1085,6 @@ function generateMaze(levelNum){
     else if (roll < 0.80){ w = 5 + (Math.random()*3|0); h = 4 + (Math.random()*3|0); }
     else { w = 6 + (Math.random()*4|0); h = 5 + (Math.random()*3|0); }
 
-    // Sometimes squash to make elongated rooms
     if (Math.random() < 0.30){
       if (Math.random() < 0.5) w = Math.max(2, w - 4);
       else h = Math.max(2, h - 4);
@@ -1109,7 +1104,6 @@ function generateMaze(levelNum){
     for (let j = y; j < y + h; j++)
       for (let i = x; i < x + w; i++) g[j][i] = 0;
 
-    // Pillars in big rooms
     if (w >= 5 && h >= 4 && Math.random() < 0.5){
       const px = x + 2 + ((Math.random()*(w-4))|0);
       const py = y + 2 + ((Math.random()*(h-4))|0);
@@ -1119,7 +1113,6 @@ function generateMaze(levelNum){
     rooms.push({ x, y, w, h });
   }
 
-  // Fallback if no rooms placed
   if (rooms.length === 0){
     const w = Math.min(10, COLS-4), h = Math.min(10, ROWS-4);
     const x = 1 + ((Math.random()*(COLS-w-2))|0);
@@ -1134,7 +1127,6 @@ function generateMaze(levelNum){
     y: r.y + (r.h/2|0)
   });
 
-  // ---- 2. Connect rooms with a spanning tree + extra loops ----
   const parent = rooms.map((_, i) => i);
   const find = x => parent[x] === x ? x : (parent[x] = find(parent[x]));
   const union = (a, b) => { a = find(a); b = find(b); if (a === b) return false; parent[a] = b; return true; };
@@ -1155,7 +1147,6 @@ function generateMaze(levelNum){
     }
   }
 
-  // Extra loops for richer movement options
   const extras = 12 + (Math.random()*14|0);
   const edgePool = Math.min(edges.length, rooms.length * 3);
   for (let k = 0; k < extras; k++){
@@ -1164,14 +1155,12 @@ function generateMaze(levelNum){
     carveCorridor(g, A.x, A.y, B.x, B.y, 1);
   }
 
-  // ---- 3. Special features (adds variety & sprawling scale) ----
   const featureCount = 8 + (Math.random()*7|0);
   for (let f = 0; f < featureCount; f++){
     const feat = FEATURES[(Math.random()*FEATURES.length)|0];
     feat(g);
   }
 
-  // ---- 4. Optional: small dead-end stubs for atmosphere ----
   const stubs = 8 + (Math.random()*10|0);
   for (let s = 0; s < stubs; s++){
     const cell = randomOpenCellIn(g);
@@ -1194,28 +1183,56 @@ function generateMazeForLevel(levelNum){
 }
 
 /* ============================================================
-   8. WORLD HELPERS
+   8. WORLD HELPERS  (fast, allocation-free hot paths)
 ============================================================ */
 function cellToWorld(i,j){
-  return new THREE.Vector3((i-(COLS-1)/2)*CELL, 0, (j-(ROWS-1)/2)*CELL);
+  return new THREE.Vector3((i-HALF_COLS)*CELL, 0, (j-HALF_ROWS)*CELL);
 }
 function worldToCell(x,z){
-  let i = Math.round(x/CELL + (COLS-1)/2);
-  let j = Math.round(z/CELL + (ROWS-1)/2);
+  let i = Math.round(x/CELL + HALF_COLS);
+  let j = Math.round(z/CELL + HALF_ROWS);
   return { i: Math.max(0,Math.min(COLS-1,i)), j: Math.max(0,Math.min(ROWS-1,j)) };
 }
-function isWallAt(x,z){ const c = worldToCell(x,z); return grid[c.j][c.i] === 1; }
-function blockedAt(x,z,r){
-  return isWallAt(x-r,z-r)||isWallAt(x+r,z-r)||isWallAt(x-r,z+r)||isWallAt(x+r,z+r);
+
+// Fast wall check — no object allocation
+function isWallAtXZ(x, z){
+  const i = Math.round(x/CELL + HALF_COLS);
+  if (i < 0 || i >= COLS) return true;
+  const j = Math.round(z/CELL + HALF_ROWS);
+  if (j < 0 || j >= ROWS) return true;
+  return wallMask[j*COLS + i] === 1;
 }
+function blockedAt(x, z, r){
+  return isWallAtXZ(x-r, z-r) || isWallAtXZ(x+r, z-r) ||
+         isWallAtXZ(x-r, z+r) || isWallAtXZ(x+r, z+r);
+}
+
+function rebuildWallMask(){
+  wallMask = new Uint8Array(COLS*ROWS);
+  for (let j = 0; j < ROWS; j++){
+    const row = grid[j];
+    const off = j * COLS;
+    for (let i = 0; i < COLS; i++) wallMask[off + i] = row[i];
+  }
+}
+
+function rebuildOpenCellCache(){
+  openCellCache = [];
+  for (let j = 1; j < ROWS-1; j++){
+    const row = grid[j];
+    for (let i = 1; i < COLS-1; i++){
+      if (row[i] === 0) openCellCache.push({i, j});
+    }
+  }
+}
+
 function randomOpenCell(){
-  const cells = [];
-  for (let j = 1; j < ROWS-1; j++)
-    for (let i = 1; i < COLS-1; i++)
-      if (grid[j][i] === 0) cells.push({i,j});
-  if (!cells.length) return {i:1,j:1};
-  return cells[Math.floor(Math.random()*cells.length)];
+  if (openCellCache && openCellCache.length){
+    return openCellCache[(Math.random()*openCellCache.length)|0];
+  }
+  return { i: 1, j: 1 };
 }
+
 function bfsDistances(si,sj){
   const dist = Array.from({length: ROWS}, () => new Array(COLS).fill(-1));
   if (grid[sj][si] === 1) return dist;
@@ -1223,8 +1240,8 @@ function bfsDistances(si,sj){
   const q = [[si,sj]];
   for (let h = 0; h < q.length; h++){
     const [i,j] = q[h];
-    for (const [di,dj] of DIRS4){
-      const ni = i+di, nj = j+dj;
+    for (let k = 0; k < 4; k++){
+      const ni = i + DIRS4[k][0], nj = j + DIRS4[k][1];
       if (ni<0||nj<0||ni>=COLS||nj>=ROWS) continue;
       if (grid[nj][ni] === 1 || dist[nj][ni] >= 0) continue;
       dist[nj][ni] = dist[j][i]+1;
@@ -1233,27 +1250,44 @@ function bfsDistances(si,sj){
   }
   return dist;
 }
-function bfsStep(si,sj,gi,gj){
-  if (si===gi && sj===gj) return null;
-  const W = COLS, N = COLS*ROWS;
-  const prev = new Int32Array(N).fill(-1);
-  const seen = new Uint8Array(N);
-  const startKey = si+sj*W, goalKey = gi+gj*W;
-  const q = [startKey]; seen[startKey] = 1;
+
+/* Reusable BFS buffers — no per-call allocation */
+let _bfsPrev = null, _bfsSeen = null, _bfsQ = null;
+function bfsStep(si, sj, gi, gj){
+  if (si === gi && sj === gj) return null;
+  const W = COLS, N = COLS * ROWS;
+  if (!_bfsPrev || _bfsPrev.length !== N){
+    _bfsPrev = new Int32Array(N);
+    _bfsSeen = new Uint8Array(N);
+    _bfsQ = new Int32Array(N);
+  }
+  const prev = _bfsPrev, seen = _bfsSeen, q = _bfsQ;
+  seen.fill(0);
+  prev.fill(-1);
+
+  const startKey = si + sj*W, goalKey = gi + gj*W;
+  q[0] = startKey; seen[startKey] = 1;
+  let head = 0, tail = 1;
   let found = false;
-  for (let h = 0; h < q.length; h++){
-    const cur = q[h];
+
+  while (head < tail){
+    const cur = q[head++];
     if (cur === goalKey){ found = true; break; }
-    const ci = cur % W, cj = (cur / W) | 0;
-    for (const [di,dj] of DIRS4){
-      const ni = ci+di, nj = cj+dj;
-      if (ni<0||nj<0||ni>=COLS||nj>=ROWS) continue;
-      const nk = ni+nj*W;
-      if (seen[nk] || grid[nj][ni] === 1) continue;
-      seen[nk] = 1; prev[nk] = cur; q.push(nk);
+    const ci = cur % W;
+    const cj = (cur / W) | 0;
+    for (let d = 0; d < 4; d++){
+      const ni = ci + DIRS4[d][0];
+      const nj = cj + DIRS4[d][1];
+      if (ni < 0 || nj < 0 || ni >= COLS || nj >= ROWS) continue;
+      const nk = ni + nj*W;
+      if (seen[nk] || wallMask[nk]) continue;
+      seen[nk] = 1;
+      prev[nk] = cur;
+      q[tail++] = nk;
     }
   }
   if (!found) return null;
+
   let cur = goalKey;
   while (prev[cur] !== -1 && prev[cur] !== startKey) cur = prev[cur];
   if (prev[cur] === -1) return null;
@@ -1278,7 +1312,7 @@ renderer.outputColorSpace = THREE.SRGBColorSpace;
 el('game').appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(SETTINGS.fov, window.innerWidth/window.innerHeight, 0.08, 130);
+const camera = new THREE.PerspectiveCamera(SETTINGS.fov, window.innerWidth/window.innerHeight, 0.08, CAMERA_FAR);
 camera.rotation.order = 'YXZ';
 scene.add(camera);
 
@@ -1312,13 +1346,13 @@ exitGroup.add(exitLight);
 scene.add(exitGroup);
 
 /* ============================================================
-   9b. ENTITIES — THREE PER FLOOR
+   9b. ENTITIES — THREE PER FLOOR (sprite glow, no point lights)
 ============================================================ */
 const enemies = [];
+const enemyGeoms = null; // built lazily inside buildEnemyMesh
 
 function buildEnemyMesh(){
   const group = new THREE.Group();
-
   const bodyMat = new THREE.MeshLambertMaterial({ color: 0x121109 });
 
   const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.36, 1.05, 4, 10), bodyMat);
@@ -1346,12 +1380,22 @@ function buildEnemyMesh(){
   eR.position.set(0.11, 1.76, -0.26);
   group.add(eR);
 
-  const glow = new THREE.PointLight(0xffffff, 0, 10, 1.6);
-  glow.position.set(0, 1.4, 0);
+  // Sprite glow replaces PointLight (much cheaper shader-wise)
+  const glowMat = new THREE.SpriteMaterial({
+    color: 0xd0d8ff,
+    transparent: true,
+    opacity: 0,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    depthTest: true
+  });
+  const glow = new THREE.Sprite(glowMat);
+  glow.scale.set(2.6, 2.6, 1);
+  glow.position.set(0, 1.5, 0);
   group.add(glow);
 
   scene.add(group);
-  return { group, bodyMat, eyeMat, glow };
+  return { group, bodyMat, eyeMat, glowMat };
 }
 
 for (let i = 0; i < ENEMY_COUNT; i++){
@@ -1364,7 +1408,7 @@ for (let i = 0; i < ENEMY_COUNT; i++){
     group: parts.group,
     bodyMat: parts.bodyMat,
     eyeMat: parts.eyeMat,
-    glow: parts.glow,
+    glowMat: parts.glowMat,
     chasing: false,
     wasChasing: false,
     phase: Math.random() * Math.PI * 2
@@ -1378,15 +1422,14 @@ function configureEnemyForLevel(levelNum){
       e.bodyMat.emissive.setHex(0x33333c);
       e.eyeMat.color.setHex(0xff1818);
       e.group.scale.set(1.15, 1.32, 1.15);
-      e.glow.intensity = 0.95;
-      e.glow.color.setHex(0xd0d8ff);
-      e.glow.distance = 12;
+      e.glowMat.color.setHex(0xd0d8ff);
+      e.glowMat.opacity = 0.55;
     } else {
       e.bodyMat.color.setHex(0x121109);
       e.bodyMat.emissive.setHex(0x000000);
       e.eyeMat.color.setHex(0xff5533);
       e.group.scale.set(1, 1, 1);
-      e.glow.intensity = 0;
+      e.glowMat.opacity = 0;
     }
     e.bodyMat.needsUpdate = true;
     e.eyeMat.needsUpdate = true;
@@ -1463,16 +1506,18 @@ function disposeObject(obj){
   if (obj.dispose) obj.dispose();
 }
 function clearLevel(){
-  for (const obj of levelObjects){
+  for (let i = 0; i < levelObjects.length; i++){
+    const obj = levelObjects[i];
     scene.remove(obj);
     try { disposeObject(obj); } catch (e){}
   }
-  levelObjects = [];
-  for (const c of collectibles){
+  levelObjects.length = 0;
+  for (let i = 0; i < collectibles.length; i++){
+    const c = collectibles[i];
     scene.remove(c.group);
     try { disposeObject(c.group); } catch (e){}
   }
-  collectibles = [];
+  collectibles.length = 0;
   flickerMatRef = null;
 }
 
@@ -1524,8 +1569,7 @@ function buildWalls(theme){
   for (let j = 0; j < ROWS; j++){
     for (let i = 0; i < COLS; i++){
       if (grid[j][i] !== 1) continue;
-      const p = cellToWorld(i,j);
-      dummy.position.set(p.x, WALL_H/2, p.z);
+      dummy.position.set((i-HALF_COLS)*CELL, WALL_H/2, (j-HALF_ROWS)*CELL);
       dummy.rotation.set(0,0,0);
       dummy.scale.set(1,1,1);
       dummy.updateMatrix();
@@ -1562,13 +1606,14 @@ function buildPanels(theme){
     if (!positions.length) return null;
     const im = new THREE.InstancedMesh(panelGeo, mat, positions.length);
     im.frustumCulled = false;
-    positions.forEach((p,k) => {
+    for (let k = 0; k < positions.length; k++){
+      const p = positions[k];
       dummy.position.set(p.x, WALL_H-0.03, p.z);
       dummy.rotation.set(0, Math.random() < 0.5 ? 0 : Math.PI/2, 0);
       dummy.scale.set(1,1,1);
       dummy.updateMatrix();
       im.setMatrixAt(k, dummy.matrix);
-    });
+    }
     im.instanceMatrix.needsUpdate = true;
     return im;
   }
@@ -1596,7 +1641,7 @@ function buildBackroomsProps(theme, open){
       const p = cellToWorld(c.i, c.j);
       const s = 0.55 + Math.random()*0.85;
       dummy.position.set(p.x + (Math.random()-0.5)*2.0, (0.7*s)/2, p.z + (Math.random()-0.5)*2.0);
-      dummy.rotation.set(0, Math.random()*Math.PI*2, 0);
+      dummy.rotation.set(0, Math.random()*TWO_PI, 0);
       dummy.scale.set(s, s, s);
       dummy.updateMatrix();
       im.setMatrixAt(k, dummy.matrix);
@@ -1618,7 +1663,7 @@ function buildBackroomsProps(theme, open){
       const c = open[(k*5) % open.length];
       const p = cellToWorld(c.i, c.j);
       dummy.position.set(p.x + (Math.random()-0.5)*2.2, 0.02, p.z + (Math.random()-0.5)*2.2);
-      dummy.rotation.set(0, Math.random()*Math.PI*2, 0);
+      dummy.rotation.set(0, Math.random()*TWO_PI, 0);
       const s = 0.6 + Math.random()*1.1;
       dummy.scale.set(s, s, 1);
       dummy.updateMatrix();
@@ -1633,7 +1678,7 @@ function buildBackroomsProps(theme, open){
     for (let i = 1; i < COLS-1; i++){
       if (grid[j][i] !== 0) continue;
       let n = 0;
-      for (const [di,dj] of DIRS4) if (grid[j+dj][i+di] === 0) n++;
+      for (let d = 0; d < 4; d++) if (grid[j+DIRS4[d][1]][i+DIRS4[d][0]] === 0) n++;
       if (n >= 3 && Math.random() < 0.22) pillarCells.push({i,j});
     }
   }
@@ -1642,14 +1687,15 @@ function buildBackroomsProps(theme, open){
     const mat = new THREE.MeshLambertMaterial({ map: wallTex });
     const im = new THREE.InstancedMesh(geo, mat, pillarCells.length);
     im.frustumCulled = false;
-    pillarCells.forEach((c,k) => {
+    for (let k = 0; k < pillarCells.length; k++){
+      const c = pillarCells[k];
       const p = cellToWorld(c.i, c.j);
       dummy.position.set(p.x, WALL_H/2, p.z);
       dummy.rotation.set(0,0,0);
       dummy.scale.set(1,1,1);
       dummy.updateMatrix();
       im.setMatrixAt(k, dummy.matrix);
-    });
+    }
     im.instanceMatrix.needsUpdate = true;
     addLevelObj(im);
   }
@@ -1663,15 +1709,16 @@ function buildBackroomsProps(theme, open){
     const mat = new THREE.MeshBasicMaterial({ color: 0xff2a1a });
     const im = new THREE.InstancedMesh(geo, mat, emPos.length);
     im.frustumCulled = false;
-    emPos.forEach((c,k) => {
+    for (let k = 0; k < emPos.length; k++){
+      const c = emPos[k];
       const p = cellToWorld(c.i, c.j);
-      const [di, dj] = DIRS4[Math.floor(Math.random()*4)];
-      dummy.position.set(p.x + di*2.3, 2.5, p.z + dj*2.3);
+      const dir = DIRS4[(Math.random()*4)|0];
+      dummy.position.set(p.x + dir[0]*2.3, 2.5, p.z + dir[1]*2.3);
       dummy.rotation.set(0,0,0);
       dummy.scale.set(1,1,1);
       dummy.updateMatrix();
       im.setMatrixAt(k, dummy.matrix);
-    });
+    }
     im.instanceMatrix.needsUpdate = true;
     addLevelObj(im);
   }
@@ -1693,7 +1740,7 @@ function buildGardenProps(theme, open){
       const c = open[(k*3) % open.length];
       const p = cellToWorld(c.i, c.j);
       dummy.position.set(p.x + (Math.random()-0.5)*2.0, 0.02, p.z + (Math.random()-0.5)*2.0);
-      dummy.rotation.set(0, Math.random()*Math.PI*2, 0);
+      dummy.rotation.set(0, Math.random()*TWO_PI, 0);
       const s = 0.6 + Math.random()*0.9;
       dummy.scale.set(s, s, 1);
       dummy.updateMatrix();
@@ -1708,7 +1755,7 @@ function buildGardenProps(theme, open){
     for (let i = 1; i < COLS-1; i++){
       if (grid[j][i] !== 0) continue;
       let adjWall = 0;
-      for (const [di,dj] of DIRS4) if (grid[j+dj][i+di] === 1) adjWall++;
+      for (let d = 0; d < 4; d++) if (grid[j+DIRS4[d][1]][i+DIRS4[d][0]] === 1) adjWall++;
       if (adjWall >= 1 && Math.random() < 0.35) plantCells.push({i,j, adjWall});
     }
   }
@@ -1774,7 +1821,7 @@ function buildGardenProps(theme, open){
     const p = cellToWorld(c.i, c.j);
     const g = new THREE.Group();
     g.position.set(p.x, 0, p.z);
-    g.rotation.y = Math.random()*Math.PI*2;
+    g.rotation.y = Math.random()*TWO_PI;
     const seat = new THREE.Mesh(benchSeatGeo, benchMat);
     seat.position.y = 0.5;
     g.add(seat);
@@ -1815,13 +1862,12 @@ function buildGardenProps(theme, open){
 function buildSchoolProps(theme, open){
   const dummy = new THREE.Object3D();
 
-  // Desks — placed in rooms only
   const deskCells = [];
   for (let j = 1; j < ROWS-1; j++){
     for (let i = 1; i < COLS-1; i++){
       if (grid[j][i] !== 0) continue;
       let openN = 0;
-      for (const [di,dj] of DIRS4) if (grid[j+dj][i+di] === 0) openN++;
+      for (let d = 0; d < 4; d++) if (grid[j+DIRS4[d][1]][i+DIRS4[d][0]] === 0) openN++;
       if (openN >= 2 && Math.random() < 0.28) deskCells.push({i,j});
     }
   }
@@ -1842,7 +1888,7 @@ function buildSchoolProps(theme, open){
       const p = cellToWorld(c.i, c.j);
       const px = p.x + (Math.random()-0.5)*1.6;
       const pz = p.z + (Math.random()-0.5)*1.6;
-      const rot = Math.random()*Math.PI*2;
+      const rot = Math.random()*TWO_PI;
       const knocked = Math.random() < 0.07;
       dummy.position.set(px, knocked ? 0.28 : 0.75, pz);
       dummy.rotation.set(knocked ? Math.PI/2 : 0, rot, 0);
@@ -1871,9 +1917,9 @@ function buildSchoolProps(theme, open){
   for (let j = 1; j < ROWS-1; j++){
     for (let i = 1; i < COLS-1; i++){
       if (grid[j][i] !== 0) continue;
-      let adjWall = 0;
-      let wdx = 0, wdz = 0;
-      for (const [di,dj] of DIRS4){
+      let adjWall = 0, wdx = 0, wdz = 0;
+      for (let d = 0; d < 4; d++){
+        const di = DIRS4[d][0], dj = DIRS4[d][1];
         if (grid[j+dj][i+di] === 1){ adjWall++; wdx = di; wdz = dj; }
       }
       if (adjWall >= 1 && Math.random() < 0.35) lockerCells.push({i,j, wdx, wdz});
@@ -1905,9 +1951,9 @@ function buildSchoolProps(theme, open){
   for (let j = 1; j < ROWS-1; j++){
     for (let i = 1; i < COLS-1; i++){
       if (grid[j][i] !== 0) continue;
-      let adjWall = 0;
-      let wdx = 0, wdz = 0;
-      for (const [di,dj] of DIRS4){
+      let adjWall = 0, wdx = 0, wdz = 0;
+      for (let d = 0; d < 4; d++){
+        const di = DIRS4[d][0], dj = DIRS4[d][1];
         if (grid[j+dj][i+di] === 1){ adjWall++; wdx = di; wdz = dj; }
       }
       if (adjWall === 1 && Math.random() < 0.10) boardPos.push({i,j, wdx, wdz});
@@ -1952,7 +1998,7 @@ function buildSchoolProps(theme, open){
       const c = open[(k*7) % open.length];
       const p = cellToWorld(c.i, c.j);
       dummy.position.set(p.x + (Math.random()-0.5)*2.0, 0.02, p.z + (Math.random()-0.5)*2.0);
-      dummy.rotation.set(0, Math.random()*Math.PI*2, 0);
+      dummy.rotation.set(0, Math.random()*TWO_PI, 0);
       const s = 0.7 + Math.random()*1.1;
       dummy.scale.set(s, s, 1);
       dummy.updateMatrix();
@@ -1971,25 +2017,18 @@ function buildSchoolProps(theme, open){
     const mat = new THREE.MeshBasicMaterial({ color: 0xff1a12 });
     const im = new THREE.InstancedMesh(geo, mat, emPos.length);
     im.frustumCulled = false;
-    emPos.forEach((c,k) => {
+    for (let k = 0; k < emPos.length; k++){
+      const c = emPos[k];
       const p = cellToWorld(c.i, c.j);
-      const [di, dj] = DIRS4[Math.floor(Math.random()*4)];
-      dummy.position.set(p.x + di*2.3, 2.6, p.z + dj*2.3);
+      const dir = DIRS4[(Math.random()*4)|0];
+      dummy.position.set(p.x + dir[0]*2.3, 2.6, p.z + dir[1]*2.3);
       dummy.rotation.set(0,0,0);
       dummy.scale.set(1,1,1);
       dummy.updateMatrix();
       im.setMatrixAt(k, dummy.matrix);
-    });
+    }
     im.instanceMatrix.needsUpdate = true;
     addLevelObj(im);
-    // Fewer lights = fewer shader recompiles
-    for (let k = 0; k < Math.min(3, emPos.length); k++){
-      const c = emPos[k];
-      const p = cellToWorld(c.i, c.j);
-      const l = new THREE.PointLight(0xff2020, 0.35, 7, 1.8);
-      l.position.set(p.x, 2.5, p.z);
-      addLevelObj(l);
-    }
   }
 }
 
@@ -2053,16 +2092,11 @@ const collectBatteryCapGeo  = new THREE.CylinderGeometry(0.055, 0.055, 0.08, 10)
 const collectBatteryBodyMat = new THREE.MeshBasicMaterial({ color: 0x44ff88 });
 const collectBatteryCapMat  = new THREE.MeshBasicMaterial({ color: 0xffdd44 });
 
-/* ============================================================
-   BUILD COLLECTIBLES
-   12 papers + 3 gold papers + 8 water + 6 battery = 29 items.
-   Everything is randomly scattered across the (bigger) map.
-============================================================ */
 function buildCollectibles(openCells){
-  const shuffled = [...openCells];
+  const shuffled = openCells.slice();
   for (let k = shuffled.length-1; k > 0; k--){
     const r = Math.floor(Math.random()*(k+1));
-    [shuffled[k], shuffled[r]] = [shuffled[r], shuffled[k]];
+    const t = shuffled[k]; shuffled[k] = shuffled[r]; shuffled[r] = t;
   }
 
   const paperCount   = 12;
@@ -2112,7 +2146,7 @@ function buildCollectibles(openCells){
       pos: group.position.clone(),
       collected: false,
       baseY: 0.9,
-      phase: Math.random()*Math.PI*2,
+      phase: Math.random()*TWO_PI,
       radius: 1.5
     });
   };
@@ -2131,7 +2165,6 @@ function buildExit(theme){
   exitLight.color.setHex(theme.exitLight);
 }
 
-/* ---- spawn all 3 entities, spread apart ---- */
 function spawnEnemies(){
   const isLevel3 = currentLevel === 3;
 
@@ -2145,13 +2178,11 @@ function spawnEnemies(){
   }
   if (!candidates.length) return;
 
-  // Farthest-first ordering for levels 1 & 2
   candidates.sort((a,b) => b.d - a.d);
 
   const minSep = Math.max(5, Math.floor(Math.min(COLS, ROWS) * 0.30));
   const chosen = [];
 
-  // Pre-build the near band for level 3
   let nearBand = null;
   if (isLevel3){
     nearBand = candidates.filter(c => c.d >= 6 && c.d <= 16);
@@ -2168,7 +2199,6 @@ function spawnEnemies(){
       }
       if (!pick) pick = nearBand[(Math.random()*nearBand.length)|0];
     } else {
-      // Bias toward the far end of the map, then relax if the spread is impossible
       for (let tries = 0; tries < 80; tries++){
         const r = Math.random() * Math.random();
         const c = candidates[Math.min(candidates.length-1, (r * candidates.length)|0)];
@@ -2230,11 +2260,15 @@ function buildLevel(levelNum){
 
   grid = generateMazeForLevel(levelNum);
 
+  // Build fast-lookup structures once
+  rebuildWallMask();
+  rebuildOpenCellCache();
+
   playerStart = randomOpenCell();
   startDist = bfsDistances(playerStart.i, playerStart.j);
 
-  // Exit = farthest reachable cell from start
-  exitCell = { ...playerStart };
+  // Exit = farthest reachable cell
+  exitCell = { i: playerStart.i, j: playerStart.j };
   let bestD = -1;
   for (let j = 1; j < ROWS-1; j++){
     for (let i = 1; i < COLS-1; i++){
@@ -2261,7 +2295,7 @@ function buildLevel(levelNum){
         open.push({i,j});
   for (let k = open.length-1; k > 0; k--){
     const r = Math.floor(Math.random()*(k+1));
-    [open[k], open[r]] = [open[r], open[k]];
+    const t = open[k]; open[k] = open[r]; open[r] = t;
   }
 
   if (theme.kind === 'garden') buildGardenProps(theme, open);
@@ -2272,7 +2306,7 @@ function buildLevel(levelNum){
   buildExit(theme);
 
   player.pos.copy(cellToWorld(playerStart.i, playerStart.j));
-  yaw = Math.random() * Math.PI * 2;
+  yaw = Math.random() * TWO_PI;
   pitch = 0;
   player.bobAmount = 0;
   player.bobPhase = 0;
@@ -2288,6 +2322,7 @@ function buildLevel(levelNum){
   flashlight.intensity = 0;
   flashBtn.classList.remove('on');
   damageVig.style.opacity = 0;
+  _lastDamageOp = '';
 
   camera.position.set(player.pos.x, 1.62, player.pos.z);
   camera.rotation.y = yaw;
@@ -2304,7 +2339,7 @@ function buildLevel(levelNum){
 const keys = Object.create(null);
 window.addEventListener('keydown', e => {
   keys[e.code] = true;
-  if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'].includes(e.code)) e.preventDefault();
+  if (e.code === 'ArrowUp' || e.code === 'ArrowDown' || e.code === 'ArrowLeft' || e.code === 'ArrowRight' || e.code === 'Space') e.preventDefault();
   if (e.code === 'KeyF' && state === 'playing') toggleFlashlight();
   if (e.code === 'Escape'){
     if (state === 'playing') setState('paused');
@@ -2405,12 +2440,10 @@ function bindHold(btn, onDown, onUp){
   btn.addEventListener('mouseup', up);
   btn.addEventListener('mouseleave', up);
 }
-bindHold },(sprintBtn, () => { sprintTouch = true; }, () => { sprint Touch = false; });
-flashBtn40.addEventListener('click', e => {
-  e);
-.preventDefault(); e.stopPropagation();
-}
-  if (state === 'playing') toggleFlashlightfunction();
+bindHold(sprintBtn, () => { sprintTouch = true; }, () => { sprintTouch = false; });
+flashBtn.addEventListener('click', e => {
+  e.preventDefault(); e.stopPropagation();
+  if (state === 'playing') toggleFlashlight();
 });
 
 function onTap(node, fn){
@@ -2665,7 +2698,9 @@ function flashScreen(duration = 260){
   setTimeout(() => {
     flashFx.style.transition = 'opacity ' + (duration/1000) + 's';
     flashFx.style.opacity = '0';
-  formatTime(t){
+  }, 40);
+}
+function formatTime(t){
   const m = Math.floor(t/60).toString().padStart(2,'0');
   const s = Math.floor(t%60).toString().padStart(2,'0');
   return `${m}:${s}`;
@@ -2832,8 +2867,9 @@ function updatePlayer(dt){
   let moving = false;
 
   if (jmag > 0.09){
-    dirF = jf / Math.hypot(jf,js);
-    dirS = js / Math.hypot(jf,js);
+    const jl = Math.hypot(jf,js);
+    dirF = jf / jl;
+    dirS = js / jl;
     baseSpeed = 5.0 * jmag;
     moving = true;
   } else if (kmag > 0.01){
@@ -2883,11 +2919,14 @@ function updatePlayer(dt){
   flashlightIntensity += (targetF - flashlightIntensity) * Math.min(1, dt*8);
   flashlight.intensity = flashlightIntensity * 2.2;
 
-  // Item pickups — clean, no lights to remove → no shader stall
-  for (const c of collectibles){
+  const px = player.pos.x, pz = player.pos.z;
+  const colLen = collectibles.length;
+  for (let i = 0; i < colLen; i++){
+    const c = collectibles[i];
     if (c.collected) continue;
-    const d = Math.hypot(player.pos.x - c.pos.x, player.pos.z - c.pos.z);
-    if (d < c.radius){
+    const dxp = px - c.pos.x;
+    const dzp = pz - c.pos.z;
+    if (dxp*dxp + dzp*dzp < c.radius * c.radius){
       c.collected = true;
       c.group.visible = false;
 
@@ -2930,8 +2969,9 @@ function updatePlayer(dt){
     }
   }
 
-  const dExit = Math.hypot(player.pos.x - exitPos.x, player.pos.z - exitPos.z);
-  if (dExit < 1.8){
+  const dEx = px - exitPos.x;
+  const dEz = pz - exitPos.z;
+  if (dEx*dEx + dEz*dEz < 1.8*1.8){
     if (papersCollected >= PAPERS_NEEDED){
       onReachExit();
     } else {
@@ -2951,19 +2991,23 @@ function updatePlayer(dt){
 function updateEnemy(dt){
   const diff = DIFF[SETTINGS.diff] || DIFF[1];
   const theme = currentTheme;
-  let detectRange = diff.detect;
-  if (theme.detectOverride) detectRange = theme.detectOverride;
+  let detectRange = theme.detectOverride || diff.detect;
 
-  let closestDist = Infinity;
+  const ppx = player.pos.x, ppz = player.pos.z;
+  const detect2 = detectRange * detectRange;
+
+  let closestSq = Infinity;
   let anyChasing = false;
   const nowMs = performance.now();
 
   for (let n = 0; n < enemies.length; n++){
     const e = enemies[n];
-    const dist = player.pos.distanceTo(e.pos);
-    if (dist < closestDist) closestDist = dist;
+    const ex = e.pos.x, ez = e.pos.z;
+    const dxp = ppx - ex, dzp = ppz - ez;
+    const distSq = dxp*dxp + dzp*dzp;
+    if (distSq < closestSq) closestSq = distSq;
 
-    const chasing = dist < detectRange;
+    const chasing = distSq < detect2;
 
     if (currentLevel === 3 && chasing && !e.wasChasing){
       playLevel3Shriek();
@@ -2974,32 +3018,38 @@ function updateEnemy(dt){
     if (chasing) anyChasing = true;
 
     e.pathTimer -= dt;
-    const ec = worldToCell(e.pos.x, e.pos.z);
+
+    // Inline cell conversion (no allocation)
+    const eci = Math.round(ex/CELL + HALF_COLS);
+    const ecj = Math.round(ez/CELL + HALF_ROWS);
 
     const repathFast = currentLevel === 3 ? 0.12 : 0.24;
     if (e.pathTimer <= 0 || !e.next){
       e.pathTimer = (chasing ? repathFast : 0.95) + Math.random()*0.15;
       if (chasing){
-        const pc = worldToCell(player.pos.x, player.pos.z);
-        e.next = bfsStep(ec.i, ec.j, pc.i, pc.j);
+        const pci = Math.round(ppx/CELL + HALF_COLS);
+        const pcj = Math.round(ppz/CELL + HALF_ROWS);
+        e.next = bfsStep(eci, ecj, pci, pcj);
       } else {
         if (!e.wanderTarget ||
-            (ec.i === e.wanderTarget.i && ec.j === e.wanderTarget.j)){
+            (eci === e.wanderTarget.i && ecj === e.wanderTarget.j)){
           e.wanderTarget = randomOpenCell();
         }
-        e.next = bfsStep(ec.i, ec.j, e.wanderTarget.i, e.wanderTarget.j);
+        e.next = bfsStep(eci, ecj, e.wanderTarget.i, e.wanderTarget.j);
       }
     }
 
     if (e.next){
-      const t = cellToWorld(e.next.i, e.next.j);
-      let vx = t.x - e.pos.x;
-      let vz = t.z - e.pos.z;
+      const tx = (e.next.i - HALF_COLS) * CELL;
+      const tz = (e.next.j - HALF_ROWS) * CELL;
+      let vx = tx - ex;
+      let vz = tz - ez;
       const len = Math.hypot(vx, vz);
       if (len < 0.12){
         e.next = null;
       } else {
-        vx /= len; vz /= len;
+        const inv = 1 / len;
+        vx *= inv; vz *= inv;
         const mult = theme.enemySpeedMult || 1;
         const spd = (chasing ? diff.chase : diff.wander) * mult;
         e.pos.x += vx*spd*dt;
@@ -3014,26 +3064,24 @@ function updateEnemy(dt){
       : 0.25;
     if (currentLevel === 3){
       e.eyeMat.color.setRGB(0.35 + pulse*0.65, pulse*0.12, pulse*0.12);
+      e.glowMat.opacity = chasing ? (0.5 + pulse*0.35) : 0.4;
     } else {
       e.eyeMat.color.setRGB(1, 0.15 + pulse*0.45, 0.05);
     }
 
-    if (e.glow && currentLevel === 3){
-      e.glow.intensity = chasing ? (1.1 + pulse*0.6) : 0.85;
-    }
-
-    if (dist < 1.3){ gameOver(); return; }
+    if (distSq < 1.69){ gameOver(); return; }
   }
 
-  // Gentle mutual separation so the three don't stack into one silhouette
+  // Gentle mutual separation
   const MIN_SEP = 1.6;
+  const MIN_SEP2 = MIN_SEP * MIN_SEP;
   for (let a = 0; a < enemies.length; a++){
     for (let b = a+1; b < enemies.length; b++){
       const A = enemies[a], B = enemies[b];
       let dx = B.pos.x - A.pos.x;
       let dz = B.pos.z - A.pos.z;
       const d2 = dx*dx + dz*dz;
-      if (d2 > 0.0001 && d2 < MIN_SEP*MIN_SEP){
+      if (d2 > 0.0001 && d2 < MIN_SEP2){
         const d = Math.sqrt(d2);
         const push = (MIN_SEP - d) * 0.5;
         dx /= d; dz /= d;
@@ -3047,7 +3095,7 @@ function updateEnemy(dt){
     }
   }
 
-  const dist = closestDist;
+  const dist = Math.sqrt(closestSq);
 
   if (humGain && actx){
     const prox = Math.max(0, 1 - dist/18);
@@ -3057,11 +3105,16 @@ function updateEnemy(dt){
   }
 
   const threat = Math.max(0, 1 - dist / 4);
-  damageVig.style.opacity = (threat * 0.9).toFixed(2);
+  const op = (threat * 0.9).toFixed(2);
+  if (op !== _lastDamageOp){
+    _lastDamageOp = op;
+    damageVig.style.opacity = op;
+  }
 }
+let _lastDamageOp = '';
 
-function updateExit(){
-  const t = performance.now()*0.002;
+function updateExit(now){
+  const t = now * 2;
   const locked = papersCollected < PAPERS_NEEDED;
 
   if (locked){
@@ -3086,16 +3139,17 @@ function updateExit(){
 }
 
 function updateCollectibles(t){
-  for (const c of collectibles){
+  for (let i = 0; i < collectibles.length; i++){
+    const c = collectibles[i];
     if (c.collected) continue;
     c.group.position.y = c.baseY + Math.sin(t*2 + c.phase) * 0.14;
     c.group.rotation.y += 0.014;
   }
 }
 
-function updateFlicker(){
+function updateFlicker(now){
   if (!flickerMatRef) return;
-  const t = performance.now() * 0.005;
+  const t = now * 5;
   const n = Math.sin(t) * Math.sin(t*1.7) * Math.sin(t*2.3);
   const on = n > -0.25;
   const theme = currentTheme;
@@ -3216,6 +3270,7 @@ function closeSettings(){
 const clock = new THREE.Clock();
 let fpsAccum = 0, fpsFrames = 0;
 let animRunning = false;
+let _timerAccum = 0;
 
 function animate(){
   if (!animRunning) return;
@@ -3223,15 +3278,21 @@ function animate(){
   const dt = Math.min(clock.getDelta(), 0.05);
   const now = performance.now() / 1000;
 
-  updateFlicker();
+  updateFlicker(now);
   updateCollectibles(now);
 
   if (state === 'playing'){
     elapsed += dt;
     updatePlayer(dt);
     if (state === 'playing') updateEnemy(dt);
-    updateExit();
-    timerEl.textContent = formatTime(elapsed);
+    updateExit(now);
+
+    // Throttled timer update (4 Hz is plenty for MM:SS)
+    _timerAccum += dt;
+    if (_timerAccum >= 0.25){
+      _timerAccum = 0;
+      timerEl.textContent = formatTime(elapsed);
+    }
   } else if (state === 'menu'){
     yaw += dt * 0.06;
     if (player.pos.lengthSq() === 0) player.pos.copy(cellToWorld(1,1));
