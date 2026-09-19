@@ -43,20 +43,73 @@
   }
 
   #hud{position:fixed;inset:0;pointer-events:none;z-index:10;}
+
+  /* ---------- PIXELATED RED PAPER COUNTER ---------- */
+  #paperCounter{
+    position:absolute;
+    top:calc(12px + env(safe-area-inset-top));
+    left:calc(16px + env(safe-area-inset-left));
+    font-family:"Courier New",Courier,monospace;
+    font-weight:900;
+    font-size:22px;
+    letter-spacing:4px;
+    color:#ff1a1a;
+    text-shadow:
+      2px 0 0 #6b0000,
+      -2px 0 0 #6b0000,
+      0 2px 0 #6b0000,
+      0 -2px 0 #6b0000,
+      2px 2px 0 #6b0000,
+      0 0 14px rgba(255,20,20,.55);
+    -webkit-font-smoothing:none;
+    font-smooth:never;
+    text-rendering:geometricPrecision;
+    image-rendering:pixelated;
+    padding:2px 2px 2px 0;
+    white-space:nowrap;
+    transform-origin:left center;
+  }
+  #paperCounter.ready{
+    color:#20ff60;
+    text-shadow:
+      2px 0 0 #005018,
+      -2px 0 0 #005018,
+      0 2px 0 #005018,
+      0 -2px 0 #005018,
+      2px 2px 0 #005018,
+      0 0 16px rgba(30,255,90,.75);
+    animation:paperReadyPulse 1.4s ease-in-out infinite;
+  }
+  @keyframes paperReadyPulse{
+    0%,100%{opacity:1}
+    50%{opacity:.72}
+  }
+  @keyframes paperBump{
+    0%{transform:scale(1)}
+    35%{transform:scale(1.4)}
+    100%{transform:scale(1)}
+  }
+  #paperCounter.bump{ animation:paperBump .38s ease-out; }
+
   #timer{
-    position:absolute;top:calc(14px + env(safe-area-inset-top));left:calc(16px + env(safe-area-inset-left));
+    position:absolute;top:calc(52px + env(safe-area-inset-top));left:calc(16px + env(safe-area-inset-left));
     color:#e9dfae;font-size:15px;letter-spacing:2px;opacity:.78;
     text-shadow:0 0 8px rgba(0,0,0,.9);
   }
   #levelTag{
-    position:absolute;top:calc(36px + env(safe-area-inset-top));left:calc(16px + env(safe-area-inset-left));
+    position:absolute;top:calc(74px + env(safe-area-inset-top));left:calc(16px + env(safe-area-inset-left));
     color:#e9dfae;font-size:12px;letter-spacing:3px;opacity:.85;
     text-shadow:0 0 8px rgba(0,0,0,.9);
   }
   #score{
-    position:absolute;top:calc(56px + env(safe-area-inset-top));left:calc(16px + env(safe-area-inset-left));
+    position:absolute;top:calc(94px + env(safe-area-inset-top));left:calc(16px + env(safe-area-inset-left));
     color:#a6e0b2;font-size:12px;letter-spacing:2px;opacity:.85;
     text-shadow:0 0 8px rgba(0,0,0,.9);
+  }
+  #fps{
+    position:absolute;top:calc(116px + env(safe-area-inset-top));left:calc(16px + env(safe-area-inset-left));
+    color:#a6e0b2;font-size:11px;letter-spacing:1.5px;opacity:.6;
+    text-shadow:0 0 6px rgba(0,0,0,.9);
   }
   #staminaWrap{
     position:absolute;bottom:calc(22px + env(safe-area-inset-bottom));left:50%;
@@ -263,12 +316,6 @@
     font-size:14px;letter-spacing:1.5px;line-height:1.8;
   }
   #loadError.on{display:flex;}
-
-  #fps{
-    position:absolute;top:calc(78px + env(safe-area-inset-top));left:calc(16px + env(safe-area-inset-left));
-    color:#a6e0b2;font-size:11px;letter-spacing:1.5px;opacity:.6;
-    text-shadow:0 0 6px rgba(0,0,0,.9);
-  }
 </style>
 </head>
 <body>
@@ -280,6 +327,7 @@
 <div id="flashFx"></div>
 
 <div id="hud">
+  <div id="paperCounter">PAPERS 0/7</div>
   <div id="timer">00:00</div>
   <div id="levelTag">LEVEL 1</div>
   <div id="score">SCORE 0</div>
@@ -306,7 +354,7 @@
   <div class="keys" id="ctrlText"></div>
   <button id="startBtn" disabled>LOADING…</button>
   <button class="ghost" id="openSettings1">SETTINGS</button>
-  <p class="tiny">THREE LEVELS · RANDOM MAZES · NO TWO RUNS ALIKE</p>
+  <p class="tiny">THREE LEVELS · FIND 7 PAPERS · NO TWO RUNS ALIKE</p>
 </div>
 
 <div id="pauseScreen" class="screen hidden">
@@ -401,7 +449,6 @@ document.getElementById('ctrlText').innerHTML = isTouch
   ? `LEFT SIDE — <b>DRAG TO MOVE</b><br>RIGHT SIDE — <b>DRAG TO LOOK</b><br>BUTTONS — <b>FLASHLIGHT / SPRINT</b>`
   : `<b>W A S D</b> — MOVE &nbsp;·&nbsp; <b>MOUSE</b> — LOOK<br><b>SHIFT</b> — SPRINT &nbsp;·&nbsp; <b>F</b> — FLASHLIGHT &nbsp;·&nbsp; <b>ESC</b> — PAUSE`;
 
-// Minified ESM builds — roughly 4x smaller than the dev bundle
 const CDNS = [
   'https://unpkg.com/three@0.160.0/build/three.module.min.js',
   'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js',
@@ -464,7 +511,7 @@ const DIFF = [
 ];
 
 /* ============================================================
-   2. THEMES — Level 1 Backrooms, Level 2 Garden, Level 3 School
+   2. THEMES
 ============================================================ */
 const THEMES = {
   1: {
@@ -508,7 +555,8 @@ const THEMES = {
     panelChance: 0.34, flickerChance: 0.78, emergChance: 0.14,
     boxChance: 0.0, puddleChance: 0.18,
     extraOpenChance: 0.0,
-    enemySpeedMult: 1.75,
+    // +75% faster than the previous 1.75 → 1.75 * 1.75 = 3.0625
+    enemySpeedMult: 3.0625,
     detectOverride: 8,
     enemySpawnNear: true,
     exitColor: 0x66ddff, exitLight: 0x66ddff,
@@ -524,6 +572,7 @@ const CELL = 4;
 const WALL_H = 3.0;
 const WORLD_W = COLS * CELL, WORLD_D = ROWS * CELL;
 const DIRS4 = [[1,0],[-1,0],[0,1],[0,-1]];
+const PAPERS_NEEDED = 7;
 
 /* ============================================================
    4. DOM
@@ -559,13 +608,12 @@ const sprintBtn      = el('sprintBtn');
 const pauseBtn       = el('pauseBtn');
 const grainEl        = el('grain');
 const vigEl          = el('vignette');
+const paperCounterEl = el('paperCounter');
 
 if (isTouch) mobileBtns.classList.remove('hidden');
 
 /* ============================================================
    5. TEXTURE FACTORY — lazy + cached
-   Textures are only painted the first time a level needs them.
-   Reduces initial load work by ~80%.
 ============================================================ */
 const texCache = Object.create(null);
 function tex(key, gen){
@@ -586,7 +634,6 @@ function makeTexture(size, painter, rx = 1, ry = 1){
   return t;
 }
 
-/* ---------- BACKROOMS PAINTERS ---------- */
 function paintWall(ctx, s){
   ctx.fillStyle = '#d9cc86'; ctx.fillRect(0,0,s,s);
   for (let x = 0; x < s; x += 10){
@@ -666,8 +713,6 @@ function paintCardboard(ctx, s){
   ctx.moveTo(0, s/2); ctx.lineTo(s, s/2);
   ctx.stroke();
 }
-
-/* ---------- GARDEN PAINTERS ---------- */
 function paintHedge(ctx, s){
   ctx.fillStyle = '#245820'; ctx.fillRect(0,0,s,s);
   for (let i = 0; i < 180; i++){
@@ -733,8 +778,6 @@ function paintSky(ctx, s){
   warm.addColorStop(1, 'rgba(255,240,200,0)');
   ctx.fillStyle = warm; ctx.fillRect(0,0,s,s);
 }
-
-/* ---------- SCHOOL PAINTERS ---------- */
 function paintSchoolWall(ctx, s){
   ctx.fillStyle = '#cfc9bb'; ctx.fillRect(0,0,s,s);
   ctx.strokeStyle = 'rgba(110,104,90,0.25)';
@@ -824,7 +867,6 @@ function paintSchoolCeil(ctx, s){
   }
 }
 
-/* ---------- LAZY TEXTURE GETTERS ---------- */
 const getBackWallTex    = () => tex('bw',  () => makeTexture(128, paintWall, 2, 2));
 const getBackCarpetTex  = () => tex('bc',  () => makeTexture(128, paintCarpet, 18, 18));
 const getBackCeilTex    = () => tex('bcl', () => makeTexture(128, paintCeiling, 18, 18));
@@ -850,9 +892,11 @@ let levelObjects = [];
 let collectibles = [];
 let flickerMatRef = null;
 let currentTheme = THEMES[1];
+let papersCollected = 0;
+let exitDenyCooldown = false;
 
 /* ============================================================
-   8. MAZE GEN — LEVEL 1
+   8-9. MAZE GENERATORS
 ============================================================ */
 function generateMazeBackrooms(){
   const g = Array.from({length: ROWS}, () => new Array(COLS).fill(1));
@@ -879,9 +923,6 @@ function generateMazeBackrooms(){
   return g;
 }
 
-/* ============================================================
-   9. MAZE GEN — LEVEL 2
-============================================================ */
 function carveL(g, x1, y1, x2, y2){
   if (Math.random() < 0.5){
     for (let x = Math.min(x1,x2); x <= Math.max(x1,x2); x++)
@@ -955,9 +996,6 @@ function generateGardenMaze(){
   return g;
 }
 
-/* ============================================================
-   9b. MAZE GEN — LEVEL 3 (school)
-============================================================ */
 function generateSchoolMaze(){
   const g = Array.from({length: ROWS}, () => new Array(COLS).fill(1));
   const RW = 3, RH = 3, STEP = 4;
@@ -1227,7 +1265,7 @@ let sprintTouch = false;
 let transitionLock = false;
 
 /* ============================================================
-   12b. LEVEL 3 AUDIO (looped .mov)
+   12b. LEVEL 3 AUDIO
 ============================================================ */
 const LEVEL3_TRACK_SRC = 'v1c044g50000d8rjgevog65ltom7tpn0.mov';
 const level3Audio = new Audio();
@@ -1241,7 +1279,6 @@ function syncLevel3Audio(){
   const want = (state === 'playing') && currentLevel === 3;
   const targetVol = Math.max(0, Math.min(1, SETTINGS.master * 0.75));
   if (level3Audio.volume !== targetVol) level3Audio.volume = targetVol;
-
   if (want === level3AudioWanted) return;
   level3AudioWanted = want;
   if (want){
@@ -1287,7 +1324,6 @@ function clearLevel(){
   flickerMatRef = null;
 }
 
-/* --- FLOOR / CEILING / WALLS --- */
 function floorMapFor(theme){
   if (theme.kind === 'garden') return getGrassTex();
   if (theme.kind === 'school') return getSchoolFloorTex();
@@ -1393,7 +1429,6 @@ function buildPanels(theme){
   if (im2) addLevelObj(im2);
 }
 
-/* --- BACKROOMS PROPS --- */
 function buildBackroomsProps(theme, open){
   const dummy = new THREE.Object3D();
   const wallTex = getBackWallTex();
@@ -1490,7 +1525,6 @@ function buildBackroomsProps(theme, open){
   }
 }
 
-/* --- GARDEN PROPS --- */
 function buildGardenProps(theme, open){
   const dummy = new THREE.Object3D();
 
@@ -1528,7 +1562,6 @@ function buildGardenProps(theme, open){
   }
   const plantGroupCount = Math.min(22, plantCells.length);
 
-  // Shared geometries/materials across all plants
   const potGeo = new THREE.CylinderGeometry(0.22, 0.18, 0.36, 10);
   const potMat = new THREE.MeshLambertMaterial({ color: 0x8a5a3a });
   const foliageGeo = new THREE.SphereGeometry(0.38, 10, 8);
@@ -1665,11 +1698,9 @@ function buildGardenProps(theme, open){
   }
 }
 
-/* --- SCHOOL PROPS --- */
 function buildSchoolProps(theme, open){
   const dummy = new THREE.Object3D();
 
-  // DESKS
   const deskCells = [];
   for (let j = 1; j < ROWS-1; j++){
     for (let i = 1; i < COLS-1; i++){
@@ -1721,7 +1752,6 @@ function buildSchoolProps(theme, open){
     addLevelObj(legIM);
   }
 
-  // LOCKERS
   const lockerCells = [];
   for (let j = 1; j < ROWS-1; j++){
     for (let i = 1; i < COLS-1; i++){
@@ -1756,7 +1786,6 @@ function buildSchoolProps(theme, open){
     addLevelObj(im);
   }
 
-  // CHALKBOARDS
   const boardPos = [];
   for (let j = 1; j < ROWS-1; j++){
     for (let i = 1; i < COLS-1; i++){
@@ -1795,7 +1824,6 @@ function buildSchoolProps(theme, open){
     addLevelObj(im);
   }
 
-  // PUDDLES
   const pudCount = Math.min(28, Math.floor(open.length * theme.puddleChance));
   if (pudCount){
     const geo = new THREE.CircleGeometry(0.55, 14);
@@ -1819,7 +1847,6 @@ function buildSchoolProps(theme, open){
     addLevelObj(im);
   }
 
-  // EMERGENCY LIGHTS
   const emPos = [];
   for (let j = 2; j < ROWS-2; j++)
     for (let i = 2; i < COLS-2; i++)
@@ -1850,7 +1877,7 @@ function buildSchoolProps(theme, open){
   }
 }
 
-/* --- COLLECTIBLES --- */
+/* --- NOTES --- */
 const NOTES_L1 = [
   "DAY 4 — The hum never stops. I've stopped counting the yellow rooms.",
   "I found a door today. It led back to the same hallway. Again.",
@@ -1891,7 +1918,7 @@ const NOTES_L3 = [
   "If the lights stop flickering, RUN. It means it has stopped moving.",
 ];
 
-// Shared geometry/material for collectibles (huge win — created once, reused per level)
+// Shared geometry/material for collectibles
 const collectWaterBodyGeo = new THREE.CylinderGeometry(0.11, 0.13, 0.42, 10);
 const collectWaterCapGeo  = new THREE.CylinderGeometry(0.06, 0.06, 0.09, 10);
 const collectWaterBodyMat = new THREE.MeshBasicMaterial({ color: 0x7fe0ff });
@@ -1902,8 +1929,9 @@ const collectNoteMat      = new THREE.MeshBasicMaterial({ color: 0xf6eec9, side:
 function buildCollectibles(openCells){
   const isGarden = currentTheme.kind === 'garden';
   const isSchool = currentTheme.kind === 'school';
+  // Ensure at least 8 notes so 7 are always collectible
   const waterCount = isSchool ? 9 : (isGarden ? 7 : 5);
-  const noteCount  = isSchool ? 9 : (isGarden ? 8 : 6);
+  const noteCount  = isSchool ? 9 : (isGarden ? 9 : 8);
   const used = new Set();
   const waterCells = [];
   const noteCells = [];
@@ -1995,13 +2023,29 @@ function spawnEnemyFar(){
   enemy.wasChasing = false;
 }
 
+/* ---------- PAPER COUNTER ---------- */
+function updatePaperCounter(bump){
+  paperCounterEl.textContent = `PAPERS ${papersCollected}/${PAPERS_NEEDED}`;
+  paperCounterEl.classList.toggle('ready', papersCollected >= PAPERS_NEEDED);
+  if (bump){
+    paperCounterEl.classList.remove('bump');
+    // force reflow to restart animation
+    void paperCounterEl.offsetWidth;
+    paperCounterEl.classList.add('bump');
+  }
+}
+
 function buildLevel(levelNum){
   clearLevel();
   currentLevel = levelNum;
   const theme = THEMES[levelNum] || THEMES[1];
   currentTheme = theme;
 
-  // Theme
+  // Reset paper state for this level
+  papersCollected = 0;
+  exitDenyCooldown = false;
+  updatePaperCounter(false);
+
   scene.background = new THREE.Color(theme.fog);
   scene.fog = new THREE.Fog(theme.fog, theme.fogNear, theme.fogFar);
   ambientLight.color.setHex(theme.ambient);
@@ -2013,14 +2057,11 @@ function buildLevel(levelNum){
   playerLight.intensity = theme.kind === 'school' ? 0.32 : 0.55;
   flashlight.color.setHex(theme.kind === 'school' ? 0xdfe8ff : 0xfff2c0);
 
-  // Maze
   grid = generateMazeForLevel(levelNum);
 
-  // Random start
   playerStart = randomOpenCell();
   startDist = bfsDistances(playerStart.i, playerStart.j);
 
-  // Random exit = farthest reachable cell from start
   exitCell = { ...playerStart };
   let bestD = -1;
   for (let j = 1; j < ROWS-1; j++){
@@ -2034,13 +2075,11 @@ function buildLevel(levelNum){
   const ep = cellToWorld(exitCell.i, exitCell.j);
   exitPos.copy(ep);
 
-  // Geometry
   buildFloor(theme);
   buildCeiling(theme);
   buildWalls(theme);
   buildPanels(theme);
 
-  // Props
   const open = [];
   for (let j = 1; j < ROWS-1; j++)
     for (let i = 1; i < COLS-1; i++)
@@ -2060,7 +2099,6 @@ function buildLevel(levelNum){
   buildCollectibles(open);
   buildExit(theme);
 
-  // Player
   player.pos.copy(cellToWorld(playerStart.i, playerStart.j));
   yaw = Math.random() * Math.PI * 2;
   pitch = 0;
@@ -2068,11 +2106,9 @@ function buildLevel(levelNum){
   player.bobPhase = 0;
   player.stamina = player.maxStamina;
 
-  // Enemy
   spawnEnemyFar();
   configureEnemyForLevel(levelNum);
 
-  // HUD
   levelTag.textContent = theme.name;
   levelTag.style.color = theme.tagColor;
   flashlightOn = false;
@@ -2278,6 +2314,38 @@ function playPickupChime(){
     o.start(t); o.stop(t + 0.45);
   } catch (err) {}
 }
+function playPaperReadySound(){
+  if (!actx) return;
+  try {
+    const t = actx.currentTime;
+    for (let i = 0; i < 3; i++){
+      const o = actx.createOscillator(); o.type = 'triangle';
+      const g = actx.createGain();
+      const t0 = t + i*0.09;
+      o.frequency.setValueAtTime(700 + i*220, t0);
+      g.gain.setValueAtTime(0.0001, t0);
+      g.gain.exponentialRampToValueAtTime(0.14, t0 + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.28);
+      o.connect(g); g.connect(sfxGain);
+      o.start(t0); o.stop(t0 + 0.3);
+    }
+  } catch (err) {}
+}
+function playDenySound(){
+  if (!actx) return;
+  try {
+    const o = actx.createOscillator(); o.type = 'square';
+    const g = actx.createGain();
+    const t = actx.currentTime;
+    o.frequency.setValueAtTime(180, t);
+    o.frequency.exponentialRampToValueAtTime(90, t + 0.25);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.16, t + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.3);
+    o.connect(g); g.connect(sfxGain);
+    o.start(t); o.stop(t + 0.35);
+  } catch (err) {}
+}
 function playDescendSound(){
   if (!actx) return;
   try {
@@ -2324,7 +2392,7 @@ function playLevel3Shriek(){
 }
 
 /* ============================================================
-   16. SCARE FACE (deferred until after start so it doesn't block paint)
+   16. SCARE FACE (deferred)
 ============================================================ */
 function buildScareFace(){
   const c = document.createElement('canvas');
@@ -2415,7 +2483,7 @@ function startGame(){
   damageVig.style.opacity = 0;
 
   setState('playing');
-  showHint("Find the green light. Don't let it find you.", 5200);
+  showHint(`Collect ${PAPERS_NEEDED} papers, then reach the green light.`, 5600);
 
   if (!isTouch){
     const p = renderer.domElement.requestPointerLock?.();
@@ -2459,7 +2527,7 @@ function gameOver(){
     endScreen.classList.add('lose');
     endScreen.classList.remove('win');
     endTitle.textContent = 'IT FOUND YOU';
-    endMsg.textContent = `LEVEL ${currentLevel} · SCORE ${player.score} · TIME ${formatTime(elapsed)}`;
+    endMsg.textContent = `LEVEL ${currentLevel} · PAPERS ${papersCollected}/${PAPERS_NEEDED} · SCORE ${player.score} · TIME ${formatTime(elapsed)}`;
     againBtn.textContent = 'TRY AGAIN';
   }, 750);
 }
@@ -2533,10 +2601,10 @@ function goToNextLevel(){
   setState('playing');
 
   let hint;
-  if (next === 2) hint = 'The Garden. The hedges whisper. Find the golden gate.';
-  else if (next === 3) hint = 'THE SCHOOL. DO NOT RUN. IT CAN HEAR RUNNING.';
-  else hint = 'Find the exit.';
-  showHint(hint, 5200);
+  if (next === 2) hint = `Collect ${PAPERS_NEEDED} papers, then reach the golden gate.`;
+  else if (next === 3) hint = `Collect ${PAPERS_NEEDED} papers. DO NOT RUN. IT CAN HEAR RUNNING.`;
+  else hint = `Collect ${PAPERS_NEEDED} papers.`;
+  showHint(hint, 5600);
 
   if (!isTouch){
     const p = renderer.domElement.requestPointerLock?.();
@@ -2610,6 +2678,7 @@ function updatePlayer(dt){
   flashlightIntensity += (targetF - flashlightIntensity) * Math.min(1, dt*8);
   flashlight.intensity = flashlightIntensity * 2.2;
 
+  // Collectibles
   for (const c of collectibles){
     if (c.collected) continue;
     const d = Math.hypot(player.pos.x - c.pos.x, player.pos.z - c.pos.z);
@@ -2623,6 +2692,13 @@ function updatePlayer(dt){
         showLore("Almond Water. Tastes like static. You feel steadier.");
       } else {
         player.score += 25;
+        papersCollected++;
+        const wasReady = papersCollected === PAPERS_NEEDED;
+        updatePaperCounter(true);
+        if (wasReady){
+          playPaperReadySound();
+          showHint(`You have ${PAPERS_NEEDED} papers. The exit is open. RUN.`, 3600);
+        }
         let pool = NOTES_L1;
         if (currentTheme.kind === 'garden') pool = NOTES_L2;
         else if (currentTheme.kind === 'school') pool = NOTES_L3;
@@ -2632,8 +2708,22 @@ function updatePlayer(dt){
     }
   }
 
+  // Exit check
   const dExit = Math.hypot(player.pos.x - exitPos.x, player.pos.z - exitPos.z);
-  if (dExit < 1.6) onReachExit();
+  if (dExit < 1.6){
+    if (papersCollected >= PAPERS_NEEDED){
+      onReachExit();
+    } else {
+      if (!exitDenyCooldown){
+        exitDenyCooldown = true;
+        playDenySound();
+        const need = PAPERS_NEEDED - papersCollected;
+        showHint(`THE EXIT IS SEALED — FIND ${need} MORE PAPER${need > 1 ? 'S' : ''}`, 2600);
+        if (navigator.vibrate) navigator.vibrate(60);
+        setTimeout(() => { exitDenyCooldown = false; }, 2800);
+      }
+    }
+  }
 }
 
 function updateEnemy(dt){
@@ -2654,8 +2744,10 @@ function updateEnemy(dt){
   enemy.pathTimer -= dt;
   const ec = worldToCell(enemy.pos.x, enemy.pos.z);
 
+  // On level 3, hyper-fast repathing when chasing
+  const repathFast = currentLevel === 3 ? 0.10 : 0.22;
   if (enemy.pathTimer <= 0 || !enemy.next){
-    enemy.pathTimer = chasing ? 0.22 : 0.9;
+    enemy.pathTimer = chasing ? repathFast : 0.9;
     if (chasing){
       const pc = worldToCell(player.pos.x, player.pos.z);
       enemy.next = bfsStep(ec.i, ec.j, pc.i, pc.j);
@@ -2711,9 +2803,23 @@ function updateEnemy(dt){
 
 function updateExit(){
   const t = performance.now()*0.002;
-  exitMat.opacity = 0.38 + Math.sin(t)*0.14;
-  exitLight.intensity = 1.3 + Math.sin(t*1.3)*0.45;
+  const locked = papersCollected < PAPERS_NEEDED;
+
+  if (locked){
+    // Red, angry, slow-pulsing when sealed
+    exitMat.color.setHex(0xff1818);
+    exitLight.color.setHex(0xff1818);
+    exitMat.opacity = 0.30 + Math.sin(t*1.1)*0.10;
+    exitLight.intensity = 0.9 + Math.sin(t*0.9)*0.3;
+  } else {
+    exitMat.color.setHex(currentTheme.exitColor);
+    exitLight.color.setHex(currentTheme.exitLight);
+    exitMat.opacity = 0.42 + Math.sin(t)*0.16;
+    exitLight.intensity = 1.5 + Math.sin(t*1.3)*0.5;
+  }
+
   exitGroup.rotation.y = Math.sin(t*0.5) * 0.06;
+
   const d = Math.hypot(player.pos.x - exitPos.x, player.pos.z - exitPos.z);
   if (exitGain && actx){
     const prox = Math.max(0, 1 - d/24);
@@ -2893,7 +2999,7 @@ function animate(){
 function startAnim(){
   if (animRunning) return;
   animRunning = true;
-  clock.getDelta(); // reset delta
+  clock.getDelta();
   requestAnimationFrame(animate);
 }
 
@@ -2945,7 +3051,6 @@ onTap(pauseBtn, () => {
 window.addEventListener('contextmenu', e => e.preventDefault());
 window.addEventListener('gesturestart', e => e.preventDefault());
 
-// Pause the render loop when the tab is hidden (saves CPU + battery)
 document.addEventListener('visibilitychange', () => {
   if (document.hidden){
     animRunning = false;
@@ -2955,17 +3060,18 @@ document.addEventListener('visibilitychange', () => {
 });
 
 /* ============================================================
-   22. INIT — enable button immediately, defer heavy work
+   22. INIT
 ============================================================ */
 bindSettingControls();
 applySettings();
 refreshSettingsUI();
 
+// Initial counter display
+updatePaperCounter(false);
+
 startBtn.disabled = false;
 startBtn.textContent = 'ENTER';
 
-// Enable interaction right away, then run the expensive first-level build
-// on the next paint so the start button feels instant.
 requestAnimationFrame(() => {
   requestAnimationFrame(() => {
     currentLevel = 1;
@@ -2973,8 +3079,6 @@ requestAnimationFrame(() => {
     player.pos.copy(cellToWorld(playerStart.i, playerStart.j));
     startAnim();
 
-    // Defer the scare-face canvas painting even further — it's not needed
-    // until a game-over, so we can do it during idle time.
     if (window.requestIdleCallback){
       window.requestIdleCallback(buildScareFace, { timeout: 3000 });
     } else {
