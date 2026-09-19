@@ -44,7 +44,6 @@
 
   #hud{position:fixed;inset:0;pointer-events:none;z-index:10;}
 
-  /* ---------- PIXELATED RED PAPER COUNTER ---------- */
   #paperCounter{
     position:absolute;
     top:calc(12px + env(safe-area-inset-top));
@@ -354,7 +353,7 @@
   <div class="keys" id="ctrlText"></div>
   <button id="startBtn" disabled>LOADING…</button>
   <button class="ghost" id="openSettings1">SETTINGS</button>
-  <p class="tiny">THREE LEVELS · FIND 7 PAPERS · NO TWO RUNS ALIKE</p>
+  <p class="tiny">THREE LEVELS · 20 PAPERS PER LEVEL · RANDOM EVERY TIME</p>
 </div>
 
 <div id="pauseScreen" class="screen hidden">
@@ -555,7 +554,6 @@ const THEMES = {
     panelChance: 0.34, flickerChance: 0.78, emergChance: 0.14,
     boxChance: 0.0, puddleChance: 0.18,
     extraOpenChance: 0.0,
-    // +75% faster than the previous 1.75 → 1.75 * 1.75 = 3.0625
     enemySpeedMult: 3.0625,
     detectOverride: 8,
     enemySpawnNear: true,
@@ -1178,7 +1176,6 @@ exitLight.position.y = 1.6;
 exitGroup.add(exitLight);
 scene.add(exitGroup);
 
-/* enemy */
 const enemy = {
   pos: new THREE.Vector3(),
   next: null,
@@ -1918,60 +1915,83 @@ const NOTES_L3 = [
   "If the lights stop flickering, RUN. It means it has stopped moving.",
 ];
 
-// Shared geometry/material for collectibles
-const collectWaterBodyGeo = new THREE.CylinderGeometry(0.11, 0.13, 0.42, 10);
-const collectWaterCapGeo  = new THREE.CylinderGeometry(0.06, 0.06, 0.09, 10);
-const collectWaterBodyMat = new THREE.MeshBasicMaterial({ color: 0x7fe0ff });
-const collectWaterCapMat  = new THREE.MeshBasicMaterial({ color: 0xffffff });
-const collectNoteGeo      = new THREE.PlaneGeometry(0.4, 0.55);
-const collectNoteMat      = new THREE.MeshBasicMaterial({ color: 0xf6eec9, side: THREE.DoubleSide });
+/* ============================================================
+   SHARED ITEM GEOMETRY / MATERIALS
+============================================================ */
+const collectNoteGeo        = new THREE.PlaneGeometry(0.4, 0.55);
+const collectNoteMat        = new THREE.MeshBasicMaterial({ color: 0xf6eec9, side: THREE.DoubleSide });
+const collectGoldNoteGeo    = new THREE.PlaneGeometry(0.5, 0.7);
+const collectGoldNoteMat    = new THREE.MeshBasicMaterial({ color: 0xffd84a, side: THREE.DoubleSide });
+const collectWaterBodyGeo   = new THREE.CylinderGeometry(0.11, 0.13, 0.42, 10);
+const collectWaterCapGeo    = new THREE.CylinderGeometry(0.06, 0.06, 0.09, 10);
+const collectWaterBodyMat   = new THREE.MeshBasicMaterial({ color: 0x7fe0ff });
+const collectWaterCapMat    = new THREE.MeshBasicMaterial({ color: 0xffffff });
+const collectBatteryBodyGeo = new THREE.CylinderGeometry(0.09, 0.09, 0.34, 10);
+const collectBatteryCapGeo  = new THREE.CylinderGeometry(0.045, 0.045, 0.07, 10);
+const collectBatteryBodyMat = new THREE.MeshBasicMaterial({ color: 0x44ff88 });
+const collectBatteryCapMat  = new THREE.MeshBasicMaterial({ color: 0xffdd44 });
 
+/* ============================================================
+   BUILD COLLECTIBLES — 20 papers + lots of extra items, ALL RANDOM
+============================================================ */
 function buildCollectibles(openCells){
-  const isGarden = currentTheme.kind === 'garden';
-  const isSchool = currentTheme.kind === 'school';
-  // Ensure at least 8 notes so 7 are always collectible
-  const waterCount = isSchool ? 9 : (isGarden ? 7 : 5);
-  const noteCount  = isSchool ? 9 : (isGarden ? 9 : 8);
-  const used = new Set();
-  const waterCells = [];
-  const noteCells = [];
-
-  const sorted = [...openCells].sort((a,b) => {
-    const da = startDist[a.j]?.[a.i] ?? 0;
-    const db = startDist[b.j]?.[b.i] ?? 0;
-    return db - da;
-  });
-  for (const c of sorted){
-    if (waterCells.length >= waterCount && noteCells.length >= noteCount) break;
-    const key = c.i + ',' + c.j;
-    if (used.has(key)) continue;
-    if (startDist[c.j][c.i] < 2) continue;
-    used.add(key);
-    if (waterCells.length < waterCount) waterCells.push(c);
-    else if (noteCells.length < noteCount) noteCells.push(c);
+  // Full random shuffle of every open cell on the map
+  const shuffled = [...openCells];
+  for (let k = shuffled.length-1; k > 0; k--){
+    const r = Math.floor(Math.random()*(k+1));
+    [shuffled[k], shuffled[r]] = [shuffled[r], shuffled[k]];
   }
+
+  const isSchool = currentTheme.kind === 'school';
+  const isGarden = currentTheme.kind === 'garden';
+
+  // 20 papers EVERY level + extras
+  const paperCount   = 20;
+  const waterCount   = isSchool ? 16 : (isGarden ? 15 : 13);
+  const batteryCount = 10;
+  const goldCount    = 5;
+
+  let idx = 0;
+  const nextCell = () => {
+    if (idx >= shuffled.length) return shuffled[(Math.random()*shuffled.length)|0];
+    return shuffled[idx++];
+  };
 
   const addOne = (type, c) => {
     const group = new THREE.Group();
     const p = cellToWorld(c.i, c.j);
-    p.x += (Math.random()-0.5)*0.6;
-    p.z += (Math.random()-0.5)*0.6;
+    // Random scatter inside the cell
+    p.x += (Math.random()-0.5)*2.4;
+    p.z += (Math.random()-0.5)*2.4;
     p.y = 0.85;
     group.position.copy(p);
 
-    if (type === 'water'){
+    if (type === 'paper'){
+      const paper = new THREE.Mesh(collectNoteGeo, collectNoteMat);
+      paper.rotation.x = -Math.PI/2;
+      group.add(paper);
+      // No light on common papers — visual color is enough
+    } else if (type === 'goldPaper'){
+      const paper = new THREE.Mesh(collectGoldNoteGeo, collectGoldNoteMat);
+      paper.rotation.x = -Math.PI/2;
+      group.add(paper);
+      group.add(new THREE.PointLight(0xffd84a, 1.3, 7, 1.6));
+    } else if (type === 'water'){
       const body = new THREE.Mesh(collectWaterBodyGeo, collectWaterBodyMat);
       group.add(body);
       const cap = new THREE.Mesh(collectWaterCapGeo, collectWaterCapMat);
       cap.position.y = 0.25;
       group.add(cap);
-      group.add(new THREE.PointLight(0x7fe0ff, 0.9, 5, 1.6));
-    } else {
-      const paper = new THREE.Mesh(collectNoteGeo, collectNoteMat);
-      paper.rotation.x = -Math.PI/2;
-      group.add(paper);
-      group.add(new THREE.PointLight(0xfff2b0, 0.55, 3.5, 1.6));
+      group.add(new THREE.PointLight(0x7fe0ff, 0.95, 5.5, 1.6));
+    } else if (type === 'battery'){
+      const body = new THREE.Mesh(collectBatteryBodyGeo, collectBatteryBodyMat);
+      group.add(body);
+      const cap = new THREE.Mesh(collectBatteryCapGeo, collectBatteryCapMat);
+      cap.position.y = 0.2;
+      group.add(cap);
+      group.add(new THREE.PointLight(0x44ff88, 0.65, 4.5, 1.6));
     }
+
     scene.add(group);
     collectibles.push({
       type, group,
@@ -1979,11 +1999,15 @@ function buildCollectibles(openCells){
       collected: false,
       baseY: 0.85,
       phase: Math.random()*Math.PI*2,
-      radius: 1.2
+      radius: 1.35
     });
   };
-  for (const c of waterCells) addOne('water', c);
-  for (const c of noteCells)  addOne('note', c);
+
+  // Place all items on uniquely random cells
+  for (let i = 0; i < paperCount; i++)   addOne('paper', nextCell());
+  for (let i = 0; i < waterCount; i++)   addOne('water', nextCell());
+  for (let i = 0; i < batteryCount; i++) addOne('battery', nextCell());
+  for (let i = 0; i < goldCount; i++)    addOne('goldPaper', nextCell());
 }
 
 function buildExit(theme){
@@ -2023,13 +2047,11 @@ function spawnEnemyFar(){
   enemy.wasChasing = false;
 }
 
-/* ---------- PAPER COUNTER ---------- */
 function updatePaperCounter(bump){
   paperCounterEl.textContent = `PAPERS ${papersCollected}/${PAPERS_NEEDED}`;
   paperCounterEl.classList.toggle('ready', papersCollected >= PAPERS_NEEDED);
   if (bump){
     paperCounterEl.classList.remove('bump');
-    // force reflow to restart animation
     void paperCounterEl.offsetWidth;
     paperCounterEl.classList.add('bump');
   }
@@ -2041,7 +2063,6 @@ function buildLevel(levelNum){
   const theme = THEMES[levelNum] || THEMES[1];
   currentTheme = theme;
 
-  // Reset paper state for this level
   papersCollected = 0;
   exitDenyCooldown = false;
   updatePaperCounter(false);
@@ -2314,6 +2335,39 @@ function playPickupChime(){
     o.start(t); o.stop(t + 0.45);
   } catch (err) {}
 }
+function playGoldChime(){
+  if (!actx) return;
+  try {
+    const t = actx.currentTime;
+    const notes = [880, 1180, 1560, 1975];
+    for (let i = 0; i < notes.length; i++){
+      const o = actx.createOscillator(); o.type = 'triangle';
+      const g = actx.createGain();
+      const t0 = t + i*0.06;
+      o.frequency.setValueAtTime(notes[i], t0);
+      g.gain.setValueAtTime(0.0001, t0);
+      g.gain.exponentialRampToValueAtTime(0.16, t0 + 0.01);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.35);
+      o.connect(g); g.connect(sfxGain);
+      o.start(t0); o.stop(t0 + 0.4);
+    }
+  } catch (err) {}
+}
+function playBatterySound(){
+  if (!actx) return;
+  try {
+    const o = actx.createOscillator(); o.type = 'square';
+    const g = actx.createGain();
+    const t = actx.currentTime;
+    o.frequency.setValueAtTime(320, t);
+    o.frequency.exponentialRampToValueAtTime(560, t + 0.12);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.14, t + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.22);
+    o.connect(g); g.connect(sfxGain);
+    o.start(t); o.stop(t + 0.25);
+  } catch (err) {}
+}
 function playPaperReadySound(){
   if (!actx) return;
   try {
@@ -2392,7 +2446,7 @@ function playLevel3Shriek(){
 }
 
 /* ============================================================
-   16. SCARE FACE (deferred)
+   16. SCARE FACE
 ============================================================ */
 function buildScareFace(){
   const c = document.createElement('canvas');
@@ -2483,7 +2537,7 @@ function startGame(){
   damageVig.style.opacity = 0;
 
   setState('playing');
-  showHint(`Collect ${PAPERS_NEEDED} papers, then reach the green light.`, 5600);
+  showHint(`20 papers on the map. Find ${PAPERS_NEEDED}, then reach the green light.`, 5600);
 
   if (!isTouch){
     const p = renderer.domElement.requestPointerLock?.();
@@ -2601,9 +2655,9 @@ function goToNextLevel(){
   setState('playing');
 
   let hint;
-  if (next === 2) hint = `Collect ${PAPERS_NEEDED} papers, then reach the golden gate.`;
-  else if (next === 3) hint = `Collect ${PAPERS_NEEDED} papers. DO NOT RUN. IT CAN HEAR RUNNING.`;
-  else hint = `Collect ${PAPERS_NEEDED} papers.`;
+  if (next === 2) hint = `20 papers on the map. Find ${PAPERS_NEEDED}, then reach the golden gate.`;
+  else if (next === 3) hint = `20 papers. Find ${PAPERS_NEEDED}. DO NOT RUN. IT CAN HEAR RUNNING.`;
+  else hint = `Find ${PAPERS_NEEDED} papers.`;
   showHint(hint, 5600);
 
   if (!isTouch){
@@ -2678,32 +2732,49 @@ function updatePlayer(dt){
   flashlightIntensity += (targetF - flashlightIntensity) * Math.min(1, dt*8);
   flashlight.intensity = flashlightIntensity * 2.2;
 
-  // Collectibles
+  // Item pickups — extended for new types
   for (const c of collectibles){
     if (c.collected) continue;
     const d = Math.hypot(player.pos.x - c.pos.x, player.pos.z - c.pos.z);
     if (d < c.radius){
       c.collected = true;
       c.group.visible = false;
-      playPickupChime();
+
       if (c.type === 'water'){
+        playPickupChime();
         player.stamina = player.maxStamina;
         player.score += 50;
-        showLore("Almond Water. Tastes like static. You feel steadier.");
-      } else {
+        showLore("Almond Water. Tastes like static. You feel steadier.", 3200);
+      } else if (c.type === 'paper'){
+        playPickupChime();
         player.score += 25;
         papersCollected++;
-        const wasReady = papersCollected === PAPERS_NEEDED;
         updatePaperCounter(true);
-        if (wasReady){
+        if (papersCollected === PAPERS_NEEDED){
           playPaperReadySound();
           showHint(`You have ${PAPERS_NEEDED} papers. The exit is open. RUN.`, 3600);
         }
         let pool = NOTES_L1;
         if (currentTheme.kind === 'garden') pool = NOTES_L2;
         else if (currentTheme.kind === 'school') pool = NOTES_L3;
-        showLore(pool[(Math.random()*pool.length)|0], 6000);
+        showLore(pool[(Math.random()*pool.length)|0], 5000);
+      } else if (c.type === 'battery'){
+        playBatterySound();
+        player.score += 15;
+        player.stamina = Math.min(player.maxStamina, player.stamina + 35);
+        showLore("Flashlight battery. A little spark. Small boost.", 2800);
+      } else if (c.type === 'goldPaper'){
+        playGoldChime();
+        player.score += 100;
+        papersCollected += 3;
+        updatePaperCounter(true);
+        showHint("GOLDEN PAPER — worth 3 papers!", 2600);
+        if (papersCollected >= PAPERS_NEEDED){
+          playPaperReadySound();
+          showHint(`You have ${PAPERS_NEEDED}+ papers. The exit is open. RUN.`, 3600);
+        }
       }
+
       scoreEl.textContent = 'SCORE ' + player.score;
     }
   }
@@ -2744,7 +2815,6 @@ function updateEnemy(dt){
   enemy.pathTimer -= dt;
   const ec = worldToCell(enemy.pos.x, enemy.pos.z);
 
-  // On level 3, hyper-fast repathing when chasing
   const repathFast = currentLevel === 3 ? 0.10 : 0.22;
   if (enemy.pathTimer <= 0 || !enemy.next){
     enemy.pathTimer = chasing ? repathFast : 0.9;
@@ -2806,7 +2876,6 @@ function updateExit(){
   const locked = papersCollected < PAPERS_NEEDED;
 
   if (locked){
-    // Red, angry, slow-pulsing when sealed
     exitMat.color.setHex(0xff1818);
     exitLight.color.setHex(0xff1818);
     exitMat.opacity = 0.30 + Math.sin(t*1.1)*0.10;
@@ -3065,8 +3134,6 @@ document.addEventListener('visibilitychange', () => {
 bindSettingControls();
 applySettings();
 refreshSettingsUI();
-
-// Initial counter display
 updatePaperCounter(false);
 
 startBtn.disabled = false;
