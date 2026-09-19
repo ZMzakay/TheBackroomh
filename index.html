@@ -167,6 +167,35 @@
   #loadError{position:fixed;inset:0;z-index:300;display:none;align-items:center;justify-content:center;
     text-align:center;background:#0a0906;color:#e8ddb0;padding:30px;font-size:14px;letter-spacing:1.5px;line-height:1.8;}
   #loadError.on{display:flex;}
+
+  /* ============ ADMIN PANEL ============ */
+  #adminScreen{z-index:170;
+    background:radial-gradient(ellipse at 50% 42%, #2a0a0a 0%, #100505 55%, #050202 100%);}
+  #adminScreen h2{color:#ff4040;text-shadow:0 0 30px rgba(255,50,50,.55);letter-spacing:8px;}
+  #adminScreen .sub{color:#ff8080;}
+  #adminScreen .settings-list{width:min(430px, 92vw);text-align:left;margin-bottom:14px;}
+  #adminScreen .setting-row label{color:#ffc0c0;}
+  #adminScreen .setting-row .val{color:#ffd0d0;}
+  #adminCodeScreen{z-index:175;
+    background:radial-gradient(ellipse at 50% 42%, #1a0606 0%, #0a0202 55%, #000 100%);}
+  #adminCodeScreen h2{color:#ff4040;text-shadow:0 0 30px rgba(255,50,50,.5);letter-spacing:10px;}
+  #adminCodeScreen .sub{color:#ff8080;}
+  #adminCodeInput{
+    font-family:inherit;font-size:22px;letter-spacing:14px;text-align:center;
+    padding:14px 12px 14px 22px;width:min(260px,80vw);
+    background:rgba(0,0,0,.55);color:#ff5050;border:1px solid rgba(255,80,80,.45);
+    border-radius:2px;outline:none;margin-bottom:18px;
+    text-shadow:0 0 10px rgba(255,60,60,.7);
+  }
+  #adminCodeInput:focus{border-color:#ff5050;box-shadow:0 0 20px rgba(255,50,50,.4);}
+  #adminCodeErr{color:#ff5050;opacity:0;transition:opacity .25s;font-size:12px;
+    letter-spacing:3px;margin-top:12px;min-height:16px;}
+  #adminCodeErr.show{opacity:1;}
+  #adminStatus{
+    color:#ff8080;opacity:.85;font-size:11px;letter-spacing:2px;
+    min-height:16px;margin-top:6px;text-shadow:0 0 8px rgba(255,60,60,.5);
+    transition:opacity .3s;
+  }
 </style>
 </head>
 <body>
@@ -244,6 +273,54 @@
     <div class="setting"><div class="setting-row"><label>Show FPS</label><button class="toggle" id="sFps">OFF</button></div></div>
   </div>
   <button id="settingsBack">BACK</button>
+  <button class="ghost" id="openAdmin" style="font-size:10px;opacity:.35;min-width:120px;padding:7px 18px;margin-top:14px;letter-spacing:2px;">· ADMIN ·</button>
+</div>
+
+<!-- ============ ADMIN CODE SCREEN ============ -->
+<div id="adminCodeScreen" class="screen hidden">
+  <h2>RESTRICTED</h2>
+  <p class="sub">ENTER ACCESS CODE</p>
+  <input type="password" id="adminCodeInput" maxlength="12" inputmode="numeric" autocomplete="off" spellcheck="false">
+  <button id="adminCodeSubmit">UNLOCK</button>
+  <button class="ghost" id="adminCodeCancel">CANCEL</button>
+  <p id="adminCodeErr">INCORRECT CODE</p>
+</div>
+
+<!-- ============ ADMIN PANEL ============ -->
+<div id="adminScreen" class="screen hidden">
+  <h2>⚙ ADMIN</h2>
+  <p class="sub">RESTRICTED ACCESS GRANTED</p>
+  <div class="settings-list">
+    <div class="setting"><div class="setting-row"><label>God Mode</label><button class="toggle" id="aGod">OFF</button></div></div>
+    <div class="setting"><div class="setting-row"><label>Infinite Stamina</label><button class="toggle" id="aStamina">OFF</button></div></div>
+    <div class="setting"><div class="setting-row"><label>Freeze Enemies</label><button class="toggle" id="aFreeze">OFF</button></div></div>
+    <div class="setting"><div class="setting-row"><label>Invisibility</label><button class="toggle" id="aInvis">OFF</button></div></div>
+    <div class="setting"><div class="setting-row"><label>Reveal Exit</label><button class="toggle" id="aReveal">OFF</button></div></div>
+    <div class="setting">
+      <div class="setting-row"><label>Player Speed</label><span class="val" id="vSpeedMul">1.00x</span></div>
+      <input type="range" id="aSpeedMul" min="10" max="500" value="100">
+    </div>
+    <div class="setting">
+      <div class="setting-row"><label>Enemy Speed</label><span class="val" id="vEnemyMul">1.00x</span></div>
+      <input type="range" id="aEnemyMul" min="0" max="500" value="100">
+    </div>
+    <div class="setting">
+      <div class="setting-row"><label>Teleport to Level</label></div>
+      <div class="seg" id="aTPLevels">
+        <button data-v="1">1</button>
+        <button data-v="2">2</button>
+        <button data-v="3">3</button>
+        <button data-v="4">4</button>
+      </div>
+    </div>
+    <div class="setting"><div class="setting-row"><label>Give All Papers</label><button class="toggle" id="aGivePapers">GO</button></div></div>
+    <div class="setting"><div class="setting-row"><label>Give Key (Level 3)</label><button class="toggle" id="aGiveKey">GO</button></div></div>
+    <div class="setting"><div class="setting-row"><label>Teleport to Exit</label><button class="toggle" id="aTPExit">GO</button></div></div>
+    <div class="setting"><div class="setting-row"><label>Teleport to Spawn</label><button class="toggle" id="aTPSpawn">GO</button></div></div>
+    <div class="setting"><div class="setting-row"><label>Unlock Exit (Papers + Key)</label><button class="toggle" id="aUnlockAll">GO</button></div></div>
+  </div>
+  <p id="adminStatus"></p>
+  <button id="adminBack" style="margin-top:12px;">BACK</button>
 </div>
 
 <div id="levelScreen" class="screen hidden">
@@ -317,6 +394,20 @@ const DIFF = [
 ];
 
 /* ============================================================
+   1b. ADMIN PANEL STATE
+============================================================ */
+const ADMIN_CODE = '6767';
+const ADMIN = {
+  god: false,
+  infiniteStamina: false,
+  freezeEnemies: false,
+  invisibility: false,
+  revealExit: false,
+  speedMul: 1.0,
+  enemySpeedMul: 1.0,
+};
+
+/* ============================================================
    2. THEMES
 ============================================================ */
 const THEMES = {
@@ -379,6 +470,8 @@ const pauseScreen    = el('pauseScreen');
 const endScreen      = el('endScreen');
 const settingsScreen = el('settingsScreen');
 const levelScreen    = el('levelScreen');
+const adminScreen    = el('adminScreen');
+const adminCodeScreen= el('adminCodeScreen');
 const endTitle       = el('endTitle');
 const endMsg         = el('endMsg');
 const levelTitle     = el('levelTitle');
@@ -1061,7 +1154,6 @@ const exitLight = new THREE.PointLight(0x3affa0, 1.6, 26, 0);
 exitLight.position.y = 1.6;
 exitGroup.add(exitLight);
 
-/* Locked padlock that floats in front of the door when key is missing */
 const padlockGroup = new THREE.Group();
 (function buildPadlock(){
   const body = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.5, 0.12),
@@ -1227,7 +1319,6 @@ function clearLevel(){
   collectibles.length = 0;
   flickerMatRef = null;
   currentRooms = [];
-  // Clear key
   if (keyObject){ scene.remove(keyObject); keyObject = null; }
   keyCollected = false;
 }
@@ -1386,20 +1477,15 @@ function prop(group, geo, mat, x, y, z, sx, sy, sz, ry, rx, rz){
   return m;
 }
 
-/* ---------- KEY MESH ---------- */
 function buildKeyMesh(){
   const g = new THREE.Group();
-  // Shaft
   prop(g, PROP_GEOS.box, PM.gold, 0, 0, 0, 0.06, 0.4, 0.06);
-  // Ring
   const ring = new THREE.Mesh(new THREE.TorusGeometry(0.10, 0.028, 6, 14), PM.gold);
   ring.position.y = 0.26;
   ring.rotation.x = Math.PI/2;
   g.add(ring);
-  // Teeth
   prop(g, PROP_GEOS.box, PM.gold, 0.075, -0.16, 0, 0.13, 0.06, 0.05);
   prop(g, PROP_GEOS.box, PM.gold, 0.055, -0.06, 0, 0.10, 0.06, 0.05);
-  // Glow sprite
   const glowMat = new THREE.SpriteMaterial({
     color: 0xffe080, transparent: true, opacity: 0.75,
     blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false
@@ -1878,7 +1964,6 @@ function buildSpecialRoomProps(){
   }
 }
 
-/* ---------- HOME FILLER PROPS ---------- */
 function buildHomeProps(theme, open){
   const dummy = new THREE.Object3D();
   const lightCells = [];
@@ -1955,7 +2040,6 @@ function buildHomeProps(theme, open){
   }
 }
 
-/* ---------- OTHER THEMED FILLERS ---------- */
 function buildBackroomsProps(theme, open){
   const dummy = new THREE.Object3D();
   const wallTex = getBackWallTex();
@@ -2197,7 +2281,6 @@ function buildSchoolProps(theme, open){
   }
 }
 
-/* --- NOTES --- */
 const NOTES_L1 = [
   "DAY 4 — The hum never stops. I've stopped counting the yellow rooms.",
   "I found a door today. It led back to the same hallway. Again.",
@@ -2249,7 +2332,6 @@ const NOTES_SCHOOL = [
   "My legs stopped aching hours ago. I can run forever now.",
 ];
 
-/* Collectible shared geo/mats */
 const collectNoteGeo        = new THREE.PlaneGeometry(0.5, 0.7);
 const collectNoteMat        = new THREE.MeshBasicMaterial({ color: 0xfff6d0, side: THREE.DoubleSide });
 const collectGoldNoteGeo    = new THREE.PlaneGeometry(0.7, 0.95);
@@ -2393,7 +2475,7 @@ function buildLevel(levelNum){
   _prevExitUnlocked = false;
   timerEl.classList.remove('warn');
 
-  if (levelNum === MAX_LEVEL) staminaFill.classList.add('infinite');
+  if (levelNum === MAX_LEVEL || ADMIN.infiniteStamina) staminaFill.classList.add('infinite');
   else staminaFill.classList.remove('infinite');
 
   scene.background = new THREE.Color(theme.fog);
@@ -2453,7 +2535,6 @@ function buildLevel(levelNum){
   buildCollectibles(open);
   buildExit(theme);
 
-  // Spawn key on the HOME level only
   if (levelNum === HOME_LEVEL){
     spawnKey(open);
   }
@@ -2493,6 +2574,8 @@ window.addEventListener('keydown', e => {
   if (e.code === 'Escape'){
     if (state === 'playing') setState('paused');
     else if (state === 'paused') setState('playing');
+    else if (state === 'admin') setState('settings');
+    else if (state === 'adminCode') setState('settings');
   }
 });
 window.addEventListener('keyup', e => { keys[e.code] = false; });
@@ -2520,7 +2603,7 @@ const JOY_RADIUS = 55;
 function isUIAt(x, y){
   const e = document.elementFromPoint(x, y);
   if (!e) return false;
-  return !!e.closest('button, .mobtn, #pauseBtn, .screen, #settingsScreen');
+  return !!e.closest('button, .mobtn, #pauseBtn, .screen, #settingsScreen, #adminScreen');
 }
 function touchStart(e){
   if (state !== 'playing') return;
@@ -2620,7 +2703,6 @@ function initAudio(){
 }
 function resumeAudio(){ if (actx && actx.state === 'suspended') actx.resume().catch(() => {}); }
 
-/* ---- Core SFX ---- */
 function playScareSound(){
   if (!actx) return;
   try {
@@ -2730,8 +2812,6 @@ function playBeaconPing(){
     o.connect(g); g.connect(sfxGain); o.start(t); o.stop(t + 0.75);
   } catch (err) {}
 }
-
-/* ---- NEW SFX ---- */
 function playFootstep(hard){
   if (!actx) return;
   try {
@@ -2777,7 +2857,6 @@ function playKeyPickup(){
   if (!actx) return;
   try {
     const t = actx.currentTime;
-    // Sparkle arpeggio
     const notes = [1567, 2093, 2637, 3136];
     for (let i = 0; i < notes.length; i++){
       const o = actx.createOscillator(); o.type = 'triangle';
@@ -2790,7 +2869,6 @@ function playKeyPickup(){
       o.connect(g); g.connect(sfxGain);
       o.start(t0); o.stop(t0 + 0.6);
     }
-    // Metallic ring
     const ring = actx.createOscillator(); ring.type = 'sine';
     ring.frequency.setValueAtTime(3300, t + 0.05);
     ring.frequency.exponentialRampToValueAtTime(2600, t + 0.7);
@@ -2806,7 +2884,6 @@ function playUnlock(){
   if (!actx) return;
   try {
     const t = actx.currentTime;
-    // Mechanical click
     const clickLen = Math.floor(actx.sampleRate * 0.05);
     const buf = actx.createBuffer(1, clickLen, actx.sampleRate);
     const d = buf.getChannelData(0);
@@ -2819,14 +2896,12 @@ function playUnlock(){
     const g1 = actx.createGain(); g1.gain.value = 0.20;
     src.connect(f); f.connect(g1); g1.connect(sfxGain);
     src.start(t);
-    // Second click lower
     const src2 = actx.createBufferSource(); src2.buffer = buf;
     const f2 = actx.createBiquadFilter();
     f2.type = 'bandpass'; f2.frequency.value = 1200; f2.Q.value = 4;
     const g2 = actx.createGain(); g2.gain.value = 0.16;
     src2.connect(f2); f2.connect(g2); g2.connect(sfxGain);
     src2.start(t + 0.12);
-    // Rising chime
     const o = actx.createOscillator(); o.type = 'sine';
     o.frequency.setValueAtTime(660, t + 0.22);
     o.frequency.exponentialRampToValueAtTime(1320, t + 0.5);
@@ -3017,7 +3092,9 @@ function setState(s){
   endScreen.classList.toggle('hidden', s !== 'over');
   settingsScreen.classList.toggle('hidden', s !== 'settings');
   levelScreen.classList.toggle('hidden', s !== 'transition');
-  if ((s === 'paused' || s === 'settings' || s === 'transition') && !isTouch && document.pointerLockElement){
+  adminScreen.classList.toggle('hidden', s !== 'admin');
+  adminCodeScreen.classList.toggle('hidden', s !== 'adminCode');
+  if ((s === 'paused' || s === 'settings' || s === 'transition' || s === 'admin' || s === 'adminCode') && !isTouch && document.pointerLockElement){
     document.exitPointerLock?.();
   }
   syncLevel3Audio();
@@ -3086,6 +3163,7 @@ function returnToMenu(){
 }
 
 function gameOver(){
+  if (ADMIN.god) return;   // ADMIN: god mode prevents death
   if (state === 'over') return;
   setState('over');
   playScareSound();
@@ -3191,12 +3269,13 @@ function updatePlayer(dt){
 
   const isFinalLevel = (currentLevel === MAX_LEVEL);
   const wantsSprint = (keys['ShiftLeft']||keys['ShiftRight']||sprintTouch) && moving;
+  const adminInfinite = ADMIN.infiniteStamina || ADMIN.god;
 
-  if (isFinalLevel){
+  if (isFinalLevel || adminInfinite){
     player.stamina = player.maxStamina;
     if (wantsSprint){ player.sprinting = true; baseSpeed *= 1.75; }
     else player.sprinting = false;
-    baseSpeed *= FINAL_LEVEL_SPEED_MULT;
+    if (isFinalLevel) baseSpeed *= FINAL_LEVEL_SPEED_MULT;
   } else {
     if (wantsSprint && player.stamina > 1){
       player.sprinting = true; baseSpeed *= 1.75;
@@ -3206,10 +3285,13 @@ function updatePlayer(dt){
       player.stamina = Math.min(player.maxStamina, player.stamina + player.staminaRegen * dt);
     }
   }
-  staminaFill.style.width = (player.stamina / player.maxStamina * 100) + '%';
-  staminaFill.classList.toggle('low', !isFinalLevel && player.stamina < 25);
 
-  // FOOTSTEPS
+  // ADMIN: apply player speed multiplier
+  baseSpeed *= ADMIN.speedMul;
+
+  staminaFill.style.width = (player.stamina / player.maxStamina * 100) + '%';
+  staminaFill.classList.toggle('low', !isFinalLevel && !adminInfinite && player.stamina < 25);
+
   if (moving){
     const stepRate = player.sprinting ? 3.9 : 2.4;
     player.footstepPhase += dt * stepRate;
@@ -3221,8 +3303,7 @@ function updatePlayer(dt){
     player.footstepPhase = 0;
   }
 
-  // Low-stamina breathing
-  if (!isFinalLevel && player.stamina < 30 && moving){
+  if (!isFinalLevel && !adminInfinite && player.stamina < 30 && moving){
     if (Math.random() < dt * 2.5) playLowBreath();
   }
 
@@ -3246,7 +3327,6 @@ function updatePlayer(dt){
   camera.rotation.y = yaw; camera.rotation.x = pitch; camera.rotation.z = -dirS * 0.018;
   playerLight.position.set(player.pos.x, 1.7, player.pos.z);
 
-  // Flashlight with enemy-near flicker
   _flashlightFlicker = Math.max(0, _flashlightFlicker - dt);
   const flickerMul = _flashlightFlicker > 0 ? 0.12 : 1;
   const targetF = flashlightOn ? 1 : 0;
@@ -3266,7 +3346,6 @@ function updatePlayer(dt){
       } else if (c.type === 'paper'){
         playPickupChime(); player.score += 25; papersCollected++;
         updatePaperCounter(true);
-        // Check if this made the exit open (with key if home)
         const needsKey = (currentLevel === HOME_LEVEL);
         if (papersCollected >= PAPERS_NEEDED && (!needsKey || keyCollected)){
           if (!_prevExitUnlocked){
@@ -3301,7 +3380,6 @@ function updatePlayer(dt){
     }
   }
 
-  // KEY PICKUP (home level)
   if (keyObject && !keyCollected && currentLevel === HOME_LEVEL){
     const dxk = px - keyObject.position.x;
     const dzk = pz - keyObject.position.z;
@@ -3312,7 +3390,6 @@ function updatePlayer(dt){
       updateKeyIndicator();
       showHint("THE KEY IS YOURS", 3000);
       if (navigator.vibrate) navigator.vibrate([40,30,60]);
-      // If papers already complete, unlock exit
       if (papersCollected >= PAPERS_NEEDED && !_prevExitUnlocked){
         _prevExitUnlocked = true;
         setTimeout(() => {
@@ -3323,7 +3400,6 @@ function updatePlayer(dt){
     }
   }
 
-  // EXIT CHECK
   const dEx = px - exitPos.x, dEz = pz - exitPos.z;
   if (dEx*dEx + dEz*dEz < 1.8*1.8){
     const needsKey = (currentLevel === HOME_LEVEL);
@@ -3365,7 +3441,9 @@ function updateEnemy(dt){
   let closestSq = Infinity;
   let anyChasing = false;
   const nowMs = performance.now();
-  const enemySpeedMult = theme.enemySpeedMult || 1;
+  // ADMIN: enemy speed multiplier + freeze
+  let enemySpeedMult = (theme.enemySpeedMult || 1) * ADMIN.enemySpeedMul;
+  if (ADMIN.freezeEnemies) enemySpeedMult = 0;
 
   for (let n = 0; n < enemies.length; n++){
     const e = enemies[n];
@@ -3374,8 +3452,8 @@ function updateEnemy(dt){
     const distSq = dxp*dxp + dzp*dzp;
     if (distSq < closestSq) closestSq = distSq;
 
-    const chasing = distSq < detect2;
-    // Shriek for school, growl for others on first detection
+    // ADMIN: invisibility — enemies never detect the player
+    const chasing = !ADMIN.invisibility && distSq < detect2;
     if (chasing && !e.wasChasing){
       if (isFinalLevel){
         playLevel3Shriek();
@@ -3391,6 +3469,15 @@ function updateEnemy(dt){
     const eci = Math.round(ex/CELL + HALF_COLS);
     const ecj = Math.round(ez/CELL + HALF_ROWS);
     const inSameCell = (eci === pci && ecj === pcj);
+
+    if (ADMIN.freezeEnemies){
+      // Frozen enemies don't move — but still kill on contact (unless god)
+      if (distSq < 2.25){ gameOver(); return; }
+      // pulse eyes so player can still see them
+      const pulse = 0.5 + Math.sin(nowMs*0.006 + e.phase)*0.5;
+      e.eyeMat.color.setRGB(1, 0.15 + pulse*0.35, 0.05);
+      continue;
+    }
 
     let didDirect = false;
     if (chasing && inSameCell){
@@ -3478,23 +3565,25 @@ function updateEnemy(dt){
     if (distSq < 2.25){ gameOver(); return; }
   }
 
-  // Mutual separation
-  const MIN_SEP = 1.6, MIN_SEP2 = MIN_SEP * MIN_SEP;
-  for (let a = 0; a < enemies.length; a++){
-    for (let b = a+1; b < enemies.length; b++){
-      const A = enemies[a], B = enemies[b];
-      let dx = B.pos.x - A.pos.x, dz = B.pos.z - A.pos.z;
-      const d2 = dx*dx + dz*dz;
-      if (d2 > 0.0001 && d2 < MIN_SEP2){
-        const d = Math.sqrt(d2);
-        const push = (MIN_SEP - d) * 0.5;
-        dx /= d; dz /= d;
-        const ax = A.pos.x - dx*push, az = A.pos.z - dz*push;
-        const bx = B.pos.x + dx*push, bz = B.pos.z + dz*push;
-        if (!blockedAt(ax, az, 0.35)){ A.pos.x = ax; A.pos.z = az; }
-        if (!blockedAt(bx, bz, 0.35)){ B.pos.x = bx; B.pos.z = bz; }
-        A.group.position.set(A.pos.x, 0, A.pos.z);
-        B.group.position.set(B.pos.x, 0, B.pos.z);
+  // Mutual separation (skip if frozen)
+  if (!ADMIN.freezeEnemies){
+    const MIN_SEP = 1.6, MIN_SEP2 = MIN_SEP * MIN_SEP;
+    for (let a = 0; a < enemies.length; a++){
+      for (let b = a+1; b < enemies.length; b++){
+        const A = enemies[a], B = enemies[b];
+        let dx = B.pos.x - A.pos.x, dz = B.pos.z - A.pos.z;
+        const d2 = dx*dx + dz*dz;
+        if (d2 > 0.0001 && d2 < MIN_SEP2){
+          const d = Math.sqrt(d2);
+          const push = (MIN_SEP - d) * 0.5;
+          dx /= d; dz /= d;
+          const ax = A.pos.x - dx*push, az = A.pos.z - dz*push;
+          const bx = B.pos.x + dx*push, bz = B.pos.z + dz*push;
+          if (!blockedAt(ax, az, 0.35)){ A.pos.x = ax; A.pos.z = az; }
+          if (!blockedAt(bx, bz, 0.35)){ B.pos.x = bx; B.pos.z = bz; }
+          A.group.position.set(A.pos.x, 0, A.pos.z);
+          B.group.position.set(B.pos.x, 0, B.pos.z);
+        }
       }
     }
   }
@@ -3510,7 +3599,6 @@ function updateEnemy(dt){
   const op = (threat * 0.9).toFixed(2);
   if (op !== _lastDamageOp){ _lastDamageOp = op; damageVig.style.opacity = op; }
 
-  // Heartbeat when enemy is near
   const heartThreat = Math.max(0, 1 - dist / 7);
   if (heartThreat > 0.1){
     _heartbeatTimer -= dt;
@@ -3523,7 +3611,6 @@ function updateEnemy(dt){
     _heartbeatTimer = 0;
   }
 
-  // Flashlight flicker when enemy is chasing and close
   if (anyChasing && dist < 10){
     if (Math.random() < dt * 4){
       _flashlightFlicker = 0.08 + Math.random() * 0.18;
@@ -3537,7 +3624,6 @@ function updateExit(now){
   const hasKey = !needsKey || keyCollected;
   const locked = papersCollected < PAPERS_NEEDED || !hasKey;
 
-  // Padlock visibility — only on home level when key is missing
   if (needsKey && !keyCollected){
     padlockGroup.visible = true;
     padlockGroup.rotation.y += 0.02;
@@ -3545,7 +3631,8 @@ function updateExit(now){
     padlockGroup.visible = false;
   }
 
-  const shouldBeacon = levelElapsed >= EXIT_BEACON_TIME;
+  // ADMIN: reveal exit forces beacon on
+  const shouldBeacon = levelElapsed >= EXIT_BEACON_TIME || ADMIN.revealExit;
   if (shouldBeacon && !exitBeaconActive){
     exitBeaconActive = true;
     showHint("THE EXIT IS CALLING — FOLLOW THE FLASHING LIGHT", 5200);
@@ -3621,11 +3708,9 @@ function updateCollectibles(t){
     c.group.position.y = c.baseY + Math.sin(t*2 + c.phase) * 0.14;
     c.group.rotation.y += 0.014;
   }
-  // Key bobbing + occasional glint sound
   if (keyObject && !keyCollected){
     keyObject.position.y = keyObject.userData.baseY + Math.sin(t*2.2 + keyObject.userData.phase) * 0.18;
     keyObject.rotation.y += 0.025;
-    // Occasional sparkle sound if player is reasonably near
     const dxk = player.pos.x - keyObject.position.x;
     const dzk = player.pos.z - keyObject.position.z;
     if (dxk*dxk + dzk*dzk < 100 && Math.random() < 0.004) playKeyGlint();
@@ -3693,6 +3778,148 @@ function openSettings(from){ settingsReturn = from; setState('settings'); refres
 function closeSettings(){ setState(settingsReturn); }
 
 /* ============================================================
+   17b. ADMIN PANEL
+============================================================ */
+function adminStatus(msg){
+  const s = el('adminStatus');
+  if (!s) return;
+  s.textContent = msg;
+  clearTimeout(adminStatus._t);
+  adminStatus._t = setTimeout(() => { s.textContent = ''; }, 2600);
+}
+function applyAdminUI(){
+  el('aGod').classList.toggle('on', ADMIN.god); el('aGod').textContent = ADMIN.god ? 'ON' : 'OFF';
+  el('aStamina').classList.toggle('on', ADMIN.infiniteStamina); el('aStamina').textContent = ADMIN.infiniteStamina ? 'ON' : 'OFF';
+  el('aFreeze').classList.toggle('on', ADMIN.freezeEnemies); el('aFreeze').textContent = ADMIN.freezeEnemies ? 'ON' : 'OFF';
+  el('aInvis').classList.toggle('on', ADMIN.invisibility); el('aInvis').textContent = ADMIN.invisibility ? 'ON' : 'OFF';
+  el('aReveal').classList.toggle('on', ADMIN.revealExit); el('aReveal').textContent = ADMIN.revealExit ? 'ON' : 'OFF';
+  el('aSpeedMul').value = Math.round(ADMIN.speedMul * 100);
+  el('vSpeedMul').textContent = ADMIN.speedMul.toFixed(2) + 'x';
+  el('aEnemyMul').value = Math.round(ADMIN.enemySpeedMul * 100);
+  el('vEnemyMul').textContent = ADMIN.enemySpeedMul.toFixed(2) + 'x';
+}
+function openAdminCode(){
+  el('adminCodeErr').classList.remove('show');
+  const inp = el('adminCodeInput');
+  inp.value = '';
+  setState('adminCode');
+  setTimeout(() => inp.focus(), 60);
+}
+function tryAdminUnlock(){
+  const inp = el('adminCodeInput');
+  const val = (inp.value || '').trim();
+  if (val === ADMIN_CODE){
+    el('adminCodeErr').classList.remove('show');
+    setState('admin');
+    applyAdminUI();
+    adminStatus('ACCESS GRANTED');
+  } else {
+    el('adminCodeErr').classList.add('show');
+    inp.value = '';
+    inp.focus();
+    if (navigator.vibrate) navigator.vibrate(80);
+  }
+}
+function adminTeleportLevel(n){
+  if (n < 1 || n > MAX_LEVEL) return;
+  if (!grid && state !== 'admin'){ adminStatus('START A GAME FIRST'); return; }
+  transitionLock = false;
+  clearTimeout(onReachExit._auto);
+  clearTimeout(winGame._auto);
+  scareEl.classList.remove('on');
+  endScreen.classList.add('hidden');
+  endScreen.classList.remove('win','lose');
+  levelScreen.classList.add('hidden');
+  levelScreen.classList.remove('final');
+  buildLevel(n);
+  adminStatus('TELEPORTED TO LEVEL ' + n);
+}
+function adminGivePapers(){
+  if (state !== 'playing' && state !== 'admin' && state !== 'paused'){ adminStatus('START A GAME FIRST'); return; }
+  papersCollected = PAPERS_NEEDED;
+  updatePaperCounter(true);
+  const needsKey = (currentLevel === HOME_LEVEL);
+  if (!needsKey || keyCollected){
+    _prevExitUnlocked = true;
+    playPaperReadySound();
+    adminStatus('PAPERS COMPLETE · EXIT OPEN');
+  } else {
+    adminStatus('PAPERS COMPLETE · NEED KEY');
+  }
+}
+function adminGiveKey(){
+  if (currentLevel !== HOME_LEVEL){ adminStatus('KEY EXISTS ONLY ON LEVEL 3'); return; }
+  if (keyCollected){ adminStatus('ALREADY HAVE KEY'); return; }
+  keyCollected = true;
+  if (keyObject) keyObject.visible = false;
+  updateKeyIndicator();
+  playKeyPickup();
+  if (papersCollected >= PAPERS_NEEDED && !_prevExitUnlocked){
+    _prevExitUnlocked = true;
+    playUnlock();
+    adminStatus('KEY GIVEN · EXIT OPEN');
+  } else {
+    adminStatus('KEY GIVEN');
+  }
+}
+function adminTPExit(){
+  if (!grid){ adminStatus('START A GAME FIRST'); return; }
+  player.pos.copy(exitPos);
+  camera.position.set(player.pos.x, 1.62, player.pos.z);
+  adminStatus('TELEPORTED TO EXIT');
+}
+function adminTPSpawn(){
+  if (!grid){ adminStatus('START A GAME FIRST'); return; }
+  player.pos.copy(cellToWorld(playerStart.i, playerStart.j));
+  camera.position.set(player.pos.x, 1.62, player.pos.z);
+  adminStatus('TELEPORTED TO SPAWN');
+}
+function adminUnlockAll(){
+  if (!grid){ adminStatus('START A GAME FIRST'); return; }
+  papersCollected = PAPERS_NEEDED;
+  updatePaperCounter(true);
+  if (currentLevel === HOME_LEVEL){
+    keyCollected = true;
+    if (keyObject) keyObject.visible = false;
+    updateKeyIndicator();
+  }
+  _prevExitUnlocked = true;
+  playUnlock();
+  adminStatus('EXIT FULLY UNLOCKED');
+}
+
+function bindAdminControls(){
+  el('aGod').addEventListener('click', () => { ADMIN.god = !ADMIN.god; applyAdminUI(); adminStatus('GOD MODE ' + (ADMIN.god?'ON':'OFF')); });
+  el('aStamina').addEventListener('click', () => { ADMIN.infiniteStamina = !ADMIN.infiniteStamina; applyAdminUI(); adminStatus('INFINITE STAMINA ' + (ADMIN.infiniteStamina?'ON':'OFF')); });
+  el('aFreeze').addEventListener('click', () => { ADMIN.freezeEnemies = !ADMIN.freezeEnemies; applyAdminUI(); adminStatus('FREEZE ENEMIES ' + (ADMIN.freezeEnemies?'ON':'OFF')); });
+  el('aInvis').addEventListener('click', () => { ADMIN.invisibility = !ADMIN.invisibility; applyAdminUI(); adminStatus('INVISIBILITY ' + (ADMIN.invisibility?'ON':'OFF')); });
+  el('aReveal').addEventListener('click', () => { ADMIN.revealExit = !ADMIN.revealExit; applyAdminUI(); adminStatus('REVEAL EXIT ' + (ADMIN.revealExit?'ON':'OFF')); });
+  el('aSpeedMul').addEventListener('input', e => {
+    ADMIN.speedMul = parseInt(e.target.value)/100;
+    el('vSpeedMul').textContent = ADMIN.speedMul.toFixed(2) + 'x';
+  });
+  el('aEnemyMul').addEventListener('input', e => {
+    ADMIN.enemySpeedMul = parseInt(e.target.value)/100;
+    el('vEnemyMul').textContent = ADMIN.enemySpeedMul.toFixed(2) + 'x';
+  });
+  document.querySelectorAll('#aTPLevels button').forEach(b => b.addEventListener('click', () => {
+    adminTeleportLevel(parseInt(b.dataset.v));
+  }));
+  el('aGivePapers').addEventListener('click', adminGivePapers);
+  el('aGiveKey').addEventListener('click', adminGiveKey);
+  el('aTPExit').addEventListener('click', adminTPExit);
+  el('aTPSpawn').addEventListener('click', adminTPSpawn);
+  el('aUnlockAll').addEventListener('click', adminUnlockAll);
+
+  onTap(el('adminCodeSubmit'), tryAdminUnlock);
+  onTap(el('adminCodeCancel'), () => setState('settings'));
+  onTap(el('adminBack'), () => setState('settings'));
+  el('adminCodeInput').addEventListener('keydown', e => {
+    if (e.key === 'Enter'){ e.preventDefault(); tryAdminUnlock(); }
+  });
+}
+
+/* ============================================================
    18. LOOP
 ============================================================ */
 const clock = new THREE.Clock();
@@ -3711,7 +3938,6 @@ function animate(){
     elapsed += dt;
     levelElapsed += dt;
 
-    // Random ambient one-shots
     _ambientTimer -= dt;
     if (_ambientTimer <= 0){
       _ambientTimer = 10 + Math.random() * 16;
@@ -3720,14 +3946,13 @@ function animate(){
       else if (r < 0.55) playDistantFootstep();
       else if (r < 0.72) playDistantThump();
       else if (r < 0.82) playWhisper();
-      // else silence
     }
 
     updatePlayer(dt);
     if (state === 'playing') updateEnemy(dt);
     updateExit(now);
 
-    if (levelElapsed >= EXIT_BEACON_TIME) timerEl.classList.add('warn');
+    if (levelElapsed >= EXIT_BEACON_TIME || ADMIN.revealExit) timerEl.classList.add('warn');
     else timerEl.classList.remove('warn');
 
     _timerAccum += dt;
@@ -3782,6 +4007,7 @@ onTap(el('quitBtn'), () => returnToMenu());
 onTap(el('openSettings1'), () => openSettings('menu'));
 onTap(el('openSettings2'), () => openSettings('paused'));
 onTap(el('settingsBack'), () => closeSettings());
+onTap(el('openAdmin'), () => openAdminCode());
 onTap(pauseBtn, () => { if (state === 'playing') setState('paused'); });
 
 window.addEventListener('contextmenu', e => e.preventDefault());
@@ -3796,7 +4022,9 @@ document.addEventListener('visibilitychange', () => {
    20. INIT
 ============================================================ */
 bindSettingControls();
+bindAdminControls();
 applySettings();
+applyAdminUI();
 refreshSettingsUI();
 updatePaperCounter(false);
 updateKeyIndicator();
