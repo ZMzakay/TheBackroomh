@@ -47,6 +47,7 @@
   #paperCounter.bump{ animation:paperBump .38s ease-out; }
   #timer{position:absolute;top:calc(52px + env(safe-area-inset-top));left:calc(16px + env(safe-area-inset-left));
     color:#e9dfae;font-size:15px;letter-spacing:2px;opacity:.78;text-shadow:0 0 8px rgba(0,0,0,.9);}
+  #timer.warn{color:#ff8030;opacity:1;text-shadow:0 0 10px rgba(255,120,40,.8);}
   #levelTag{position:absolute;top:calc(74px + env(safe-area-inset-top));left:calc(16px + env(safe-area-inset-left));
     color:#e9dfae;font-size:12px;letter-spacing:3px;opacity:.85;text-shadow:0 0 8px rgba(0,0,0,.9);}
   #score{position:absolute;top:calc(94px + env(safe-area-inset-top));left:calc(16px + env(safe-area-inset-left));
@@ -58,6 +59,9 @@
     border:1px solid rgba(255,255,255,.18);border-radius:3px;overflow:hidden;opacity:.8;}
   #staminaFill{height:100%;width:100%;background:linear-gradient(90deg,#c4e08a,#e8d974);transition:background .2s;}
   #staminaFill.low{background:linear-gradient(90deg,#e08a6a,#c46a4a);}
+  #staminaFill.infinite{background:linear-gradient(90deg,#60e0ff,#a0d8ff,#60e0ff);
+    animation:infPulse 1.6s ease-in-out infinite;}
+  @keyframes infPulse{0%,100%{opacity:.85}50%{opacity:1}}
   #crosshair{position:absolute;left:50%;top:50%;width:5px;height:5px;margin:-2.5px 0 0 -2.5px;
     border-radius:50%;background:rgba(255,255,255,.45);box-shadow:0 0 6px rgba(0,0,0,.8);}
   #hint{position:absolute;left:0;right:0;bottom:calc(110px + env(safe-area-inset-bottom));
@@ -192,7 +196,7 @@
   <div class="keys" id="ctrlText"></div>
   <button id="startBtn" disabled>LOADING…</button>
   <button class="ghost" id="openSettings1">SETTINGS</button>
-  <p class="tiny">THREE LEVELS · 3 ENTITIES PER FLOOR · RANDOM MAPS</p>
+  <p class="tiny">FOUR LEVELS · 3 ENTITIES PER FLOOR · RANDOM MAPS</p>
 </div>
 
 <div id="pauseScreen" class="screen hidden">
@@ -283,7 +287,7 @@ if (!THREE){
 /* ============================================================
    1. SETTINGS
 ============================================================ */
-const SETTINGS_KEY = 'backrooms_settings_v4';
+const SETTINGS_KEY = 'backrooms_settings_v5';
 const DEFAULTS = {
   master: 0.7, sfx: 0.8, sens: 1.0, touchSens: 1.0,
   fov: 76, diff: 1, quality: 2,
@@ -303,7 +307,8 @@ const DIFF = [
 ];
 
 /* ============================================================
-   2. THEMES
+   2. THEMES  —  Four levels now:
+        1. Backrooms  2. Garden  3. Home  4. School (final)
 ============================================================ */
 const THEMES = {
   1: { name: 'LEVEL 1 — THE BACKROOMS', kind: 'backrooms',
@@ -320,7 +325,14 @@ const THEMES = {
     panelChance: 0.30, flickerChance: 0.05, emergChance: 0.02,
     boxChance: 0.04, puddleChance: 0.26, enemySpeedMult: 1.10,
     exitColor: 0xffd84a, exitLight: 0xffd84a, tagColor: '#b8f0a0' },
-  3: { name: 'LEVEL 3 — THE SCHOOL', kind: 'school',
+  3: { name: 'LEVEL 3 — THE HOME', kind: 'home',
+    fog: 0x5a4630, fogNear: 3.2, fogFar: 36,
+    ambient: 0xffd8a0, ambientI: 0.80, hemiSky: 0xffe0b0, hemiGround: 0x3a2818, hemiI: 0.65,
+    panelColor: 0xffe8c0, flickerOn: [1.0, 0.9, 0.7], flickerOff: [0.28, 0.22, 0.14],
+    panelChance: 0.30, flickerChance: 0.18, emergChance: 0.05,
+    boxChance: 0.10, puddleChance: 0.10, enemySpeedMult: 1.05,
+    exitColor: 0xffa040, exitLight: 0xffa040, tagColor: '#ffb878' },
+  4: { name: 'LEVEL 4 — THE SCHOOL', kind: 'school',
     fog: 0x0a0b10, fogNear: 1.2, fogFar: 17,
     ambient: 0x9aa8c0, ambientI: 0.30, hemiSky: 0x7080a0, hemiGround: 0x080810, hemiI: 0.32,
     panelColor: 0xf0f8ff, flickerOn: [1.0, 1.0, 1.0], flickerOff: [0.02, 0.02, 0.05],
@@ -344,6 +356,9 @@ const PAPERS_NEEDED = 7;
 const ENEMY_COUNT = 3;
 const TWO_PI = Math.PI * 2;
 const CAMERA_FAR = 65;
+const EXIT_BEACON_TIME = 150; // 2:30 before the exit starts flashing
+const MAX_LEVEL = 4;
+const FINAL_LEVEL_SPEED_MULT = 1.5; // Applied only on the last level
 
 /* ============================================================
    4. DOM
@@ -586,6 +601,71 @@ function paintSchoolCeil(ctx, s){
   }
 }
 
+/* ---------- HOME TEXTURES ---------- */
+function paintHomeWall(ctx, s){
+  // Warm cream wallpaper with subtle vertical stripes and small floral dots
+  ctx.fillStyle = '#d8c6a2'; ctx.fillRect(0,0,s,s);
+  // Stripes
+  for (let x = 0; x < s; x += 16){
+    ctx.fillStyle = `rgba(160,128,88,${0.14+Math.random()*0.08})`;
+    ctx.fillRect(x, 0, 4, s);
+  }
+  // Floral / damask dots
+  for (let i = 0; i < 55; i++){
+    const x = Math.random()*s, y = Math.random()*s;
+    const r = 4 + Math.random()*4;
+    const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+    g.addColorStop(0, `rgba(150,90,60,${0.35+Math.random()*0.2})`);
+    g.addColorStop(1, 'rgba(150,90,60,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill();
+  }
+  // Age stains
+  for (let i = 0; i < 6; i++){
+    const x = Math.random()*s, y = Math.random()*s, r = 15+Math.random()*40;
+    const g = ctx.createRadialGradient(x,y,0,x,y,r);
+    g.addColorStop(0,'rgba(70,45,25,0.18)'); g.addColorStop(1,'rgba(70,45,25,0)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x,y,r,0,7); ctx.fill();
+  }
+}
+function paintHomeFloor(ctx, s){
+  // Wood planks
+  const plankH = 16;
+  for (let y = 0; y < s; y += plankH){
+    const shade = 90 + Math.random()*35;
+    ctx.fillStyle = `rgb(${shade + 40}, ${shade - 5}, ${shade - 55})`;
+    ctx.fillRect(0, y, s, plankH);
+    // Dark seam
+    ctx.fillStyle = 'rgba(35,18,8,0.7)';
+    ctx.fillRect(0, y + plankH - 1, s, 1);
+    // Grain specks
+    for (let i = 0; i < 22; i++){
+      ctx.fillStyle = `rgba(60,30,15,${0.08+Math.random()*0.14})`;
+      ctx.fillRect(Math.random()*s, y + Math.random()*plankH, 2 + Math.random()*10, 1);
+    }
+  }
+  // Wear/stains
+  for (let i = 0; i < 8; i++){
+    const x = Math.random()*s, y = Math.random()*s, r = 20+Math.random()*40;
+    const g = ctx.createRadialGradient(x,y,0,x,y,r);
+    g.addColorStop(0,'rgba(40,20,10,0.22)'); g.addColorStop(1,'rgba(40,20,10,0)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x,y,r,0,7); ctx.fill();
+  }
+}
+function paintHomeCeil(ctx, s){
+  ctx.fillStyle = '#e6dac4'; ctx.fillRect(0,0,s,s);
+  for (let i = 0; i < s*s*0.16; i++){
+    ctx.fillStyle = `rgba(${140+Math.random()*40|0},${118+Math.random()*40|0},${88+Math.random()*40|0},0.10)`;
+    ctx.fillRect(Math.random()*s, Math.random()*s, 2, 2);
+  }
+  for (let i = 0; i < 3; i++){
+    const x = Math.random()*s, y = Math.random()*s, r = 20+Math.random()*34;
+    const g = ctx.createRadialGradient(x,y,0,x,y,r);
+    g.addColorStop(0,'rgba(120,88,55,0.16)'); g.addColorStop(1,'rgba(120,88,55,0)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x,y,r,0,7); ctx.fill();
+  }
+}
+
 const getBackWallTex    = () => tex('bw',  () => makeTexture(128, paintWall, 2, 2));
 const getBackCarpetTex  = () => tex('bc',  () => makeTexture(128, paintCarpet, COLS, ROWS));
 const getBackCeilTex    = () => tex('bcl', () => makeTexture(128, paintCeiling, COLS, ROWS));
@@ -596,6 +676,9 @@ const getSkyTex         = () => tex('sk',  () => makeTexture(128, paintSky, Math
 const getSchoolWallTex  = () => tex('sw',  () => makeTexture(192, paintSchoolWall, 2, 2));
 const getSchoolFloorTex = () => tex('sf',  () => makeTexture(192, paintSchoolFloor, COLS, ROWS));
 const getSchoolCeilTex  = () => tex('sc',  () => makeTexture(192, paintSchoolCeil, COLS, ROWS));
+const getHomeWallTex    = () => tex('hw',  () => makeTexture(192, paintHomeWall, 2, 2));
+const getHomeFloorTex   = () => tex('hf',  () => makeTexture(192, paintHomeFloor, COLS, ROWS));
+const getHomeCeilTex    = () => tex('hc',  () => makeTexture(192, paintHomeCeil, COLS, ROWS));
 
 /* ============================================================
    6. STATE
@@ -608,17 +691,19 @@ let exitCell = { i: 1, j: 1 };
 const exitPos = new THREE.Vector3();
 let playerStart = { i: 1, j: 1 };
 let currentLevel = 1;
-const MAX_LEVEL = 3;
 let levelObjects = [];
 let collectibles = [];
 let flickerMatRef = null;
 let currentTheme = THEMES[1];
 let papersCollected = 0;
 let exitDenyCooldown = false;
-let currentRooms = [];  // NEW: rooms with type tags
+let currentRooms = [];
+let levelElapsed = 0;
+let exitBeaconActive = false;
+let _lastBeaconHintAt = -999;
 
 /* ============================================================
-   7. MAZE GENERATOR — denser rooms + many special rooms
+   7. MAZE GENERATOR
 ============================================================ */
 function carveCorridor(g, x1, y1, x2, y2, width){
   const hw = ((width || 1) / 2) | 0;
@@ -656,7 +741,6 @@ function randomOpenCellIn(g){
   return cells[(Math.random()*cells.length)|0];
 }
 
-/* ---------- Big structural features (kept rare) ---------- */
 function featLongCorridor(g){
   const seed = randomOpenCellIn(g); if (!seed) return;
   const horiz = Math.random() < 0.5;
@@ -713,43 +797,40 @@ function featCourtyard(g){
 }
 const FEATURES = [featLongCorridor, featGreatHall, featCross, featCourtyard];
 
-/* Room type catalogue — used to spawn themed props inside small rooms */
 const SPECIAL_TYPES = [
   'bathtub', 'bathroom', 'office', 'storage', 'bedroom',
   'kitchen', 'living', 'library', 'server', 'chapel',
   'pool', 'mirror', 'padded', 'surgery', 'pantry',
-  'workshop', 'observatory', 'lab', 'closet', 'utility'
+  'workshop', 'observatory', 'lab', 'closet', 'utility',
+  'dining', 'nursery', 'laundry', 'hallway', 'attic', 'basement'
 ];
 
 function generateMaze(levelNum){
   const g = Array.from({length: ROWS}, () => new Array(COLS).fill(1));
   const rooms = [];
 
-  const isSchool = levelNum === 3;
+  const isSchool = levelNum === MAX_LEVEL;
   const isGarden = levelNum === 2;
-  // Much higher target — the packing tests below limit actual count
-  const targetRooms = isSchool ? 95 : (isGarden ? 85 : 90);
+  const isHome = levelNum === 3;
+  // Home level: slightly smaller but denser rooms
+  const targetRooms = isSchool ? 95 : (isHome ? 100 : (isGarden ? 85 : 90));
 
-  // Pack tightly: only require a zero-cell gap for tiny rooms,
-  // allow shared walls for bigger ones. This dramatically increases density.
   const attempts = targetRooms * 14;
   for (let a = 0; a < attempts && rooms.length < targetRooms; a++){
     const roll = Math.random();
     let w, h;
 
-    // ~70% tiny/small  ·  ~25% small-medium  ·  ~5% medium  ·  <1% big
-    if (roll < 0.35){ w = 2; h = 2 + (Math.random()*2|0); }                 // 2x2–2x3 tiny
-    else if (roll < 0.62){ w = 3; h = 2 + (Math.random()*2|0); }            // 3x2–3x3 small
-    else if (roll < 0.82){ w = 2 + (Math.random()*2|0); h = 2 + (Math.random()*2|0); } // 2–3 x 2–3 small
-    else if (roll < 0.94){ w = 3 + (Math.random()*2|0); h = 3 + (Math.random()*2|0); } // 3–4 x 3–4 small-med
-    else if (roll < 0.995){ w = 4 + (Math.random()*2|0); h = 4 + (Math.random()*2|0); } // 4–5 med (uncommon)
-    else { w = 6 + (Math.random()*3|0); h = 5 + (Math.random()*2|0); }     // big — rare
+    if (roll < 0.35){ w = 2; h = 2 + (Math.random()*2|0); }
+    else if (roll < 0.62){ w = 3; h = 2 + (Math.random()*2|0); }
+    else if (roll < 0.82){ w = 2 + (Math.random()*2|0); h = 2 + (Math.random()*2|0); }
+    else if (roll < 0.94){ w = 3 + (Math.random()*2|0); h = 3 + (Math.random()*2|0); }
+    else if (roll < 0.995){ w = 4 + (Math.random()*2|0); h = 4 + (Math.random()*2|0); }
+    else { w = 6 + (Math.random()*3|0); h = 5 + (Math.random()*2|0); }
 
     if (w > COLS - 3 || h > ROWS - 3) continue;
     const x = 1 + (Math.random() * (COLS - w - 2))|0;
     const y = 1 + (Math.random() * (ROWS - h - 2))|0;
 
-    // Tight overlap check: allow adjacent rooms to share a wall
     let ok = true;
     for (let r = 0; r < rooms.length; r++){
       const rr = rooms[r];
@@ -761,13 +842,12 @@ function generateMaze(levelNum){
     for (let j = y; j < y + h; j++)
       for (let i = x; i < x + w; i++) g[j][i] = 0;
 
-    // Assign a special-room type — bias toward small rooms
     let type = null;
     const area = w * h;
     let typeChance = 0.15;
-    if (area <= 6) typeChance = 0.55;
-    else if (area <= 9) typeChance = 0.45;
-    else if (area <= 12) typeChance = 0.30;
+    if (area <= 6) typeChance = 0.60;
+    else if (area <= 9) typeChance = 0.50;
+    else if (area <= 12) typeChance = 0.32;
     else if (area <= 16) typeChance = 0.15;
     else typeChance = 0.05;
 
@@ -787,7 +867,6 @@ function generateMaze(levelNum){
     rooms.push({ x, y, w, h, type: null, cx: x+(w/2|0), cy: y+(h/2|0) });
   }
 
-  // Spanning-tree connection between rooms
   const parent = rooms.map((_, i) => i);
   const find = x => parent[x] === x ? x : (parent[x] = find(parent[x]));
   const union = (a, b) => { a = find(a); b = find(b); if (a === b) return false; parent[a] = b; return true; };
@@ -809,7 +888,6 @@ function generateMaze(levelNum){
     }
   }
 
-  // Extra loops so movement feels open
   const extras = 18 + (Math.random()*16|0);
   const edgePool = Math.min(edges.length, rooms.length * 3);
   for (let k = 0; k < extras; k++){
@@ -818,14 +896,12 @@ function generateMaze(levelNum){
     carveCorridor(g, A.cx, A.cy, B.cx, B.cy, 1);
   }
 
-  // Rare structural features
   const featureCount = 3 + (Math.random()*4|0);
   for (let f = 0; f < featureCount; f++){
     const feat = FEATURES[(Math.random()*FEATURES.length)|0];
     feat(g);
   }
 
-  // A few atmosphere dead-ends
   const stubs = 6 + (Math.random()*8|0);
   for (let s = 0; s < stubs; s++){
     const cell = randomOpenCellIn(g);
@@ -975,6 +1051,28 @@ exitGroup.add(exitPlane);
 const exitLight = new THREE.PointLight(0x3affa0, 1.6, 26, 0);
 exitLight.position.y = 1.6;
 exitGroup.add(exitLight);
+
+const beaconRingMat = new THREE.MeshBasicMaterial({
+  color: 0xffffff, transparent: true, opacity: 0, side: THREE.DoubleSide,
+  depthWrite: false, blending: THREE.AdditiveBlending
+});
+const beaconRing = new THREE.Mesh(new THREE.RingGeometry(1.6, 2.2, 32), beaconRingMat);
+beaconRing.rotation.x = -Math.PI/2;
+beaconRing.position.y = 0.05;
+exitGroup.add(beaconRing);
+
+const beaconHaloMat = new THREE.MeshBasicMaterial({
+  color: 0xffffff, transparent: true, opacity: 0, side: THREE.DoubleSide,
+  depthWrite: false, blending: THREE.AdditiveBlending
+});
+const beaconHalo = new THREE.Mesh(new THREE.PlaneGeometry(3.6, 3.6), beaconHaloMat);
+beaconHalo.position.y = 1.5;
+exitGroup.add(beaconHalo);
+
+const beaconLight = new THREE.PointLight(0xffffff, 0, 34, 0);
+beaconLight.position.y = 1.8;
+exitGroup.add(beaconLight);
+
 scene.add(exitGroup);
 
 /* ============================================================
@@ -1016,8 +1114,9 @@ for (let i = 0; i < ENEMY_COUNT; i++){
 }
 
 function configureEnemyForLevel(levelNum){
+  const isFinal = (levelNum === MAX_LEVEL);
   for (const e of enemies){
-    if (levelNum === 3){
+    if (isFinal){
       e.bodyMat.color.setHex(0xf6f6fa);
       e.bodyMat.emissive.setHex(0x33333c);
       e.eyeMat.color.setHex(0xff1818);
@@ -1052,7 +1151,7 @@ let sprintTouch = false;
 let transitionLock = false;
 
 /* ============================================================
-   10b. LEVEL 3 AUDIO
+   10b. LEVEL 4 AUDIO (plays on the final level)
 ============================================================ */
 const LEVEL3_TRACK_SRC = 'v1c044g50000d8rjgevog65ltom7tpn0.mov';
 const level3Audio = new Audio();
@@ -1060,7 +1159,7 @@ level3Audio.src = LEVEL3_TRACK_SRC;
 level3Audio.loop = true; level3Audio.preload = 'auto'; level3Audio.volume = 0;
 let level3AudioWanted = false;
 function syncLevel3Audio(){
-  const want = (state === 'playing') && currentLevel === 3;
+  const want = (state === 'playing') && currentLevel === MAX_LEVEL;
   const targetVol = Math.max(0, Math.min(1, SETTINGS.master * 0.75));
   if (level3Audio.volume !== targetVol) level3Audio.volume = targetVol;
   if (want === level3AudioWanted) return;
@@ -1102,16 +1201,19 @@ function clearLevel(){
 function floorMapFor(theme){
   if (theme.kind === 'garden') return getGrassTex();
   if (theme.kind === 'school') return getSchoolFloorTex();
+  if (theme.kind === 'home') return getHomeFloorTex();
   return getBackCarpetTex();
 }
 function ceilMapFor(theme){
   if (theme.kind === 'garden') return getSkyTex();
   if (theme.kind === 'school') return getSchoolCeilTex();
+  if (theme.kind === 'home') return getHomeCeilTex();
   return getBackCeilTex();
 }
 function wallMapFor(theme){
   if (theme.kind === 'garden') return getHedgeTex();
   if (theme.kind === 'school') return getSchoolWallTex();
+  if (theme.kind === 'home') return getHomeWallTex();
   return getBackWallTex();
 }
 
@@ -1150,6 +1252,7 @@ function buildWalls(theme){
       const v = 0.82 + Math.random()*0.24;
       if (theme.kind === 'garden') col.setRGB(v, v*0.98, v*0.92);
       else if (theme.kind === 'school') col.setRGB(v*0.94, v*0.96, v);
+      else if (theme.kind === 'home') col.setRGB(v, v*0.94, v*0.84);
       else col.setRGB(v, v*0.99, v*0.92);
       walls.setColorAt(wi, col);
       wi++;
@@ -1201,6 +1304,7 @@ const PROP_GEOS = {
   sph: new THREE.SphereGeometry(1, 10, 8),
   pln: new THREE.PlaneGeometry(1,1),
   capsule: new THREE.CapsuleGeometry(0.35, 0.9, 3, 8),
+  cone: new THREE.ConeGeometry(1, 1, 8, 1, true),
 };
 const PM = {
   white:     new THREE.MeshLambertMaterial({color: 0xe8e6e0}),
@@ -1208,6 +1312,7 @@ const PM = {
   porc:      new THREE.MeshLambertMaterial({color: 0xf0efe8}),
   wood:      new THREE.MeshLambertMaterial({color: 0x6a4a2a}),
   darkwood:  new THREE.MeshLambertMaterial({color: 0x3a2818}),
+  warmwood:  new THREE.MeshLambertMaterial({color: 0x8a5a30}),
   metal:     new THREE.MeshLambertMaterial({color: 0x3a3a42}),
   rust:      new THREE.MeshLambertMaterial({color: 0x6a4030}),
   fabric:    new THREE.MeshLambertMaterial({color: 0x5a4030}),
@@ -1222,6 +1327,7 @@ const PM = {
   glowGreen: new THREE.MeshBasicMaterial({color: 0x40ff60}),
   glowBlue:  new THREE.MeshBasicMaterial({color: 0x40a0ff}),
   glowAmber: new THREE.MeshBasicMaterial({color: 0xffb040}),
+  glowWarm:  new THREE.MeshBasicMaterial({color: 0xffd898}),
   book1:     new THREE.MeshLambertMaterial({color: 0x803820}),
   book2:     new THREE.MeshLambertMaterial({color: 0x204870}),
   book3:     new THREE.MeshLambertMaterial({color: 0x306030}),
@@ -1230,9 +1336,9 @@ const PM = {
   pad:       new THREE.MeshLambertMaterial({color: 0xddd8c8}),
   padYellow: new THREE.MeshLambertMaterial({color: 0xd8c878}),
   tile:      new THREE.MeshLambertMaterial({color: 0xc8d0d0}),
+  wallpaper: new THREE.MeshLambertMaterial({color: 0xd8c6a2}),
 };
 
-/* Small helper: add a mesh to a group with position/scale/rotation */
 function prop(group, geo, mat, x, y, z, sx, sy, sz, ry, rx, rz){
   const m = new THREE.Mesh(geo, mat);
   m.position.set(x, y, z);
@@ -1244,41 +1350,28 @@ function prop(group, geo, mat, x, y, z, sx, sy, sz, ry, rx, rz){
   return m;
 }
 
-/* ============================================================
-   SPECIAL ROOM PROP BUILDERS
-   Each builder takes a room and the world-space center/size,
-   and returns a THREE.Group.
-============================================================ */
+/* ---------- SPECIAL ROOM BUILDERS ---------- */
 function buildBathtubRoom(room, cx, cz, w, h){
   const g = new THREE.Group();
   const rng = () => Math.random() - 0.5;
-  // 1–2 bathtubs against walls
   const count = (room.w * room.h >= 6) ? 2 : 1;
   for (let i = 0; i < count; i++){
     const x = cx + rng() * (w - 3);
     const z = cz + rng() * (h - 2.2) * 0.8;
     const ry = Math.random() < 0.5 ? 0 : Math.PI/2;
-    // Tub outer
     prop(g, PROP_GEOS.box, PM.porc, x, 0.3, z, 2.6, 0.6, 1.2, ry);
-    // Tub rim (raised edges)
     prop(g, PROP_GEOS.box, PM.white, x, 0.6, z, 2.6, 0.05, 0.15, ry);
-    // Water inside
-    const innerOff = 0.02;
     const waterMesh = prop(g, PROP_GEOS.box, PM.water, x, 0.55, z, 2.3, 0.02, 0.9, ry);
     waterMesh.renderOrder = 1;
-    // Faucet
     prop(g, PROP_GEOS.cyl, PM.metal, x + (ry ? 0 : 1.0), 0.75, z + (ry ? 1.0 : 0), 0.05, 0.3, 0.05);
   }
-  // Tile patch on floor
   const floor = prop(g, PROP_GEOS.pln, PM.tile, cx, 0.015, cz, Math.min(w, 12), 1, Math.min(h, 12), 0, -Math.PI/2, 0);
   floor.renderOrder = 0;
   return g;
 }
-
 function buildBathroomRoom(room, cx, cz, w, h){
   const g = new THREE.Group();
   const rng = () => Math.random() - 0.5;
-  // Toilets
   const tCount = Math.max(1, Math.min(3, room.w));
   for (let i = 0; i < tCount; i++){
     const x = cx + rng() * (w - 2);
@@ -1286,7 +1379,6 @@ function buildBathroomRoom(room, cx, cz, w, h){
     prop(g, PROP_GEOS.box, PM.porc, x, 0.25, z, 0.5, 0.5, 0.6);
     prop(g, PROP_GEOS.cyl, PM.porc, x, 0.5, z - 0.28, 0.32, 0.15, 0.32);
   }
-  // Sinks
   const sCount = Math.max(1, Math.min(2, room.h));
   for (let i = 0; i < sCount; i++){
     const x = cx + rng() * (w - 2);
@@ -1296,32 +1388,25 @@ function buildBathroomRoom(room, cx, cz, w, h){
   }
   return g;
 }
-
 function buildOfficeRoom(room, cx, cz, w, h){
   const g = new THREE.Group();
   const rng = () => Math.random() - 0.5;
   const x = cx + rng() * (w * 0.5);
   const z = cz + rng() * (h * 0.5);
-  // Desk
   prop(g, PROP_GEOS.box, PM.darkwood, x, 0.75, z, 2.0, 0.1, 0.9);
   prop(g, PROP_GEOS.box, PM.darkwood, x - 0.9, 0.36, z - 0.35, 0.08, 0.72, 0.08);
   prop(g, PROP_GEOS.box, PM.darkwood, x + 0.9, 0.36, z - 0.35, 0.08, 0.72, 0.08);
   prop(g, PROP_GEOS.box, PM.darkwood, x - 0.9, 0.36, z + 0.35, 0.08, 0.72, 0.08);
   prop(g, PROP_GEOS.box, PM.darkwood, x + 0.9, 0.36, z + 0.35, 0.08, 0.72, 0.08);
-  // Chair
   prop(g, PROP_GEOS.box, PM.fabric, x, 0.45, z + 1.0, 0.5, 0.1, 0.5);
   prop(g, PROP_GEOS.box, PM.fabric, x, 0.7, z + 1.2, 0.5, 0.5, 0.1);
-  // Filing cabinet
   prop(g, PROP_GEOS.box, PM.metal, x - 1.6, 0.6, z - 0.6, 0.6, 1.2, 0.6);
-  // Paper stack
   prop(g, PROP_GEOS.box, PM.white, x + 0.5, 0.82, z - 0.2, 0.4, 0.05, 0.5);
   return g;
 }
-
 function buildStorageRoom(room, cx, cz, w, h){
   const g = new THREE.Group();
   const rng = () => Math.random() - 0.5;
-  const crateMat = PM.wood;
   const count = Math.max(3, Math.min(8, (room.w * room.h) | 0));
   for (let i = 0; i < count; i++){
     const x = cx + rng() * (w - 1.5);
@@ -1329,85 +1414,68 @@ function buildStorageRoom(room, cx, cz, w, h){
     const s = 0.5 + Math.random() * 0.5;
     const stack = Math.random() < 0.35 ? 2 : 1;
     for (let k = 0; k < stack; k++){
-      prop(g, PROP_GEOS.box, crateMat, x, s/2 + k * s, z, s, s, s, Math.random() * TWO_PI);
+      prop(g, PROP_GEOS.box, PM.wood, x, s/2 + k * s, z, s, s, s, Math.random() * TWO_PI);
     }
   }
-  // Shelf
   prop(g, PROP_GEOS.box, PM.metal, cx - w*0.35, 1.4, cz, w*0.5, 0.08, 0.5);
   prop(g, PROP_GEOS.box, PM.metal, cx - w*0.35, 0.9, cz, w*0.5, 0.08, 0.5);
   prop(g, PROP_GEOS.box, PM.metal, cx - w*0.35, 0.4, cz, w*0.5, 0.08, 0.5);
   return g;
 }
-
 function buildBedroomRoom(room, cx, cz, w, h){
   const g = new THREE.Group();
   const rng = () => Math.random() - 0.5;
   const x = cx + rng() * (w * 0.4);
   const z = cz + rng() * (h * 0.4);
   const ry = Math.random() < 0.5 ? 0 : Math.PI/2;
-  // Bed
   prop(g, PROP_GEOS.box, PM.darkwood, x, 0.25, z, 2.0, 0.5, 1.2, ry);
   prop(g, PROP_GEOS.box, PM.white, x, 0.55, z, 1.9, 0.15, 1.1, ry);
   prop(g, PROP_GEOS.box, PM.darkwood, x + (ry ? 0 : 1.0), 0.75, z + (ry ? 1.0 : 0), 0.08, 1.5, 1.2, ry);
-  // Pillow
   prop(g, PROP_GEOS.box, PM.offwhite, x + (ry ? 0 : 0.7), 0.65, z + (ry ? 0.7 : 0), 0.5, 0.15, 0.6, ry);
-  // Nightstand
   prop(g, PROP_GEOS.box, PM.darkwood, x - (ry ? 0.9 : 1.4), 0.4, z + (ry ? -1.4 : 0), 0.5, 0.8, 0.5);
+  // Bedside lamp
+  prop(g, PROP_GEOS.cyl, PM.glowWarm, x - (ry ? 0.9 : 1.4), 0.9, z + (ry ? -1.4 : 0), 0.1, 0.2, 0.1);
   return g;
 }
-
 function buildKitchenRoom(room, cx, cz, w, h){
   const g = new THREE.Group();
   const rng = () => Math.random() - 0.5;
-  // Counter along one wall
   const counterX = cx - w*0.35;
   prop(g, PROP_GEOS.box, PM.white, counterX, 0.45, cz, 2.2, 0.9, 0.6);
-  // Sink
   prop(g, PROP_GEOS.box, PM.metal, counterX, 0.92, cz, 0.6, 0.05, 0.5);
-  // Stove
   prop(g, PROP_GEOS.box, PM.offwhite, cx + w*0.3, 0.45, cz - h*0.25, 0.7, 0.9, 0.6);
   prop(g, PROP_GEOS.cyl, PM.black, cx + w*0.3 - 0.2, 0.91, cz - h*0.25 - 0.15, 0.15, 0.02, 0.15);
   prop(g, PROP_GEOS.cyl, PM.black, cx + w*0.3 + 0.2, 0.91, cz - h*0.25 - 0.15, 0.15, 0.02, 0.15);
-  // Fridge
   prop(g, PROP_GEOS.box, PM.offwhite, cx + w*0.35, 0.9, cz + h*0.25, 0.7, 1.8, 0.7);
   prop(g, PROP_GEOS.box, PM.metal, cx + w*0.35, 1.2, cz + h*0.25 - 0.36, 0.05, 0.6, 0.05);
-  // Table
   prop(g, PROP_GEOS.box, PM.wood, cx + rng() * 1.5, 0.75, cz + rng() * 1.5, 1.0, 0.08, 1.0);
   return g;
 }
-
 function buildLivingRoom(room, cx, cz, w, h){
   const g = new THREE.Group();
   const rng = () => Math.random() - 0.5;
-  // Sofa
   const sx = cx + rng() * (w * 0.3);
   const sz = cz + rng() * (h * 0.3);
   prop(g, PROP_GEOS.box, PM.fabric, sx, 0.4, sz, 2.0, 0.5, 0.9);
   prop(g, PROP_GEOS.box, PM.fabric, sx - 0.85, 0.75, sz, 0.35, 0.7, 0.9);
   prop(g, PROP_GEOS.box, PM.fabric, sx + 0.85, 0.75, sz, 0.35, 0.7, 0.9);
   prop(g, PROP_GEOS.box, PM.fabric, sx, 0.75, sz - 0.35, 2.0, 0.5, 0.35);
-  // Coffee table
   prop(g, PROP_GEOS.box, PM.darkwood, sx, 0.4, sz + 1.4, 1.2, 0.08, 0.6);
-  // TV on stand
   prop(g, PROP_GEOS.box, PM.darkwood, sx, 0.35, sz + 2.4, 1.4, 0.5, 0.4);
-  const tv = prop(g, PROP_GEOS.box, PM.black, sx, 0.9, sz + 2.4, 1.6, 0.9, 0.08);
-  // Faint TV glow
+  prop(g, PROP_GEOS.box, PM.black, sx, 0.9, sz + 2.4, 1.6, 0.9, 0.08);
   const glow = new THREE.Mesh(PROP_GEOS.pln, new THREE.MeshBasicMaterial({color: 0x4060a0, transparent: true, opacity: 0.25, side: THREE.DoubleSide, depthWrite: false}));
   glow.position.set(sx, 0.9, sz + 2.34);
   g.add(glow);
   return g;
 }
-
 function buildLibraryRoom(room, cx, cz, w, h){
   const g = new THREE.Group();
-  // Rows of bookshelves facing the center
   const shelves = Math.max(1, Math.min(3, (room.w * room.h / 6) | 0));
   const books = [PM.book1, PM.book2, PM.book3, PM.book4];
   for (let s = 0; s < shelves; s++){
     const off = (s - (shelves-1)/2) * 2.0;
     const bx = cx + off, bz = cz - h*0.35;
     prop(g, PROP_GEOS.box, PM.darkwood, bx, 1.0, bz, 1.6, 2.0, 0.5);
-    // Book spines
     for (let r = 0; r < 4; r++){
       for (let b = 0; b < 8; b++){
         const col = books[(Math.random() * 4) | 0];
@@ -1419,7 +1487,6 @@ function buildLibraryRoom(room, cx, cz, w, h){
   }
   return g;
 }
-
 function buildServerRoom(room, cx, cz, w, h){
   const g = new THREE.Group();
   const racks = Math.max(1, Math.min(3, (room.w * room.h / 6) | 0));
@@ -1427,7 +1494,6 @@ function buildServerRoom(room, cx, cz, w, h){
     const off = (r - (racks-1)/2) * 1.3;
     const rx = cx + off, rz = cz + Math.random() * 0.5 - 0.25;
     prop(g, PROP_GEOS.box, PM.black, rx, 1.0, rz, 0.9, 2.0, 0.9);
-    // Blinking status LEDs
     for (let k = 0; k < 8; k++){
       const ry = 0.3 + k * 0.2;
       const mat = Math.random() < 0.5 ? PM.glowGreen : PM.glowBlue;
@@ -1436,10 +1502,8 @@ function buildServerRoom(room, cx, cz, w, h){
   }
   return g;
 }
-
 function buildChapelRoom(room, cx, cz, w, h){
   const g = new THREE.Group();
-  // Pews (rows of benches)
   const rows = Math.max(2, Math.min(4, (h / 3) | 0));
   for (let r = 0; r < rows; r++){
     const z = cz - h*0.3 + r * 1.4;
@@ -1449,46 +1513,32 @@ function buildChapelRoom(room, cx, cz, w, h){
     prop(g, PROP_GEOS.box, PM.darkwood, xR, 0.5, z, 1.6, 0.1, 0.5);
     prop(g, PROP_GEOS.box, PM.darkwood, xR, 0.75, z - 0.2, 1.6, 0.5, 0.1);
   }
-  // Altar at the front
   prop(g, PROP_GEOS.box, PM.offwhite, cx, 0.5, cz - h*0.42, 1.6, 1.0, 0.6);
   prop(g, PROP_GEOS.cyl, PM.glowAmber, cx, 1.15, cz - h*0.42, 0.1, 0.2, 0.1);
   return g;
 }
-
 function buildPoolRoom(room, cx, cz, w, h){
   const g = new THREE.Group();
-  // Sunken pool floor with water
   const pool = prop(g, PROP_GEOS.pln, PM.waterDark, cx, 0.02, cz, Math.min(w, 12), 1, Math.min(h, 12), 0, -Math.PI/2, 0);
   pool.renderOrder = 1;
-  // Railing tiles
   prop(g, PROP_GEOS.box, PM.tile, cx, 0.04, cz - h*0.4, w, 0.08, 0.4);
   prop(g, PROP_GEOS.box, PM.tile, cx, 0.04, cz + h*0.4, w, 0.08, 0.4);
   prop(g, PROP_GEOS.box, PM.tile, cx - w*0.4, 0.04, cz, 0.4, 0.08, h);
   prop(g, PROP_GEOS.box, PM.tile, cx + w*0.4, 0.04, cz, 0.4, 0.08, h);
-  // Diving board
   prop(g, PROP_GEOS.box, PM.white, cx, 0.6, cz - h*0.42, 0.5, 0.1, 1.0);
   return g;
 }
-
 function buildMirrorRoom(room, cx, cz, w, h){
   const g = new THREE.Group();
-  // Mirror panels on all four inner walls
-  const mirrors = 4;
   const mw = w - 0.6, mh = h - 0.6;
-  // North
   prop(g, PROP_GEOS.pln, PM.mirror, cx, 1.5, cz - mh/2, mw, 2.2, 1, 0, 0, 0);
-  // South
   prop(g, PROP_GEOS.pln, PM.mirror, cx, 1.5, cz + mh/2, mw, 2.2, 1, Math.PI, 0, 0);
-  // East
   prop(g, PROP_GEOS.pln, PM.mirror, cx + mw/2, 1.5, cz, mw, 2.2, 1, -Math.PI/2, 0, 0);
-  // West
   prop(g, PROP_GEOS.pln, PM.mirror, cx - mw/2, 1.5, cz, mw, 2.2, 1, Math.PI/2, 0, 0);
   return g;
 }
-
 function buildPaddedRoom(room, cx, cz, w, h){
   const g = new THREE.Group();
-  // Padded cubes on each inner wall
   const padSize = 1.0;
   const wHalf = (w - 0.5) / 2, hHalf = (h - 0.5) / 2;
   for (let py = 0.6; py < WALL_H - 0.4; py += padSize){
@@ -1501,38 +1551,29 @@ function buildPaddedRoom(room, cx, cz, w, h){
       prop(g, PROP_GEOS.box, PM.pad, cx + wHalf, py, cz + pz, 0.15, padSize*0.9, padSize*0.9);
     }
   }
-  // Small drain in the middle
   prop(g, PROP_GEOS.cyl, PM.metal, cx, 0.02, cz, 0.3, 0.04, 0.3);
   return g;
 }
-
 function buildSurgeryRoom(room, cx, cz, w, h){
   const g = new THREE.Group();
-  // Operating table
   prop(g, PROP_GEOS.box, PM.metal, cx, 0.9, cz, 2.4, 0.1, 1.0);
   prop(g, PROP_GEOS.cyl, PM.metal, cx, 0.45, cz, 0.15, 0.9, 0.15);
-  // Overhead light
   prop(g, PROP_GEOS.cyl, PM.metal, cx, WALL_H - 0.5, cz, 0.4, 0.15, 0.4);
   prop(g, PROP_GEOS.sph, PM.white, cx, WALL_H - 0.7, cz, 0.35, 0.15, 0.35);
   const surgLight = new THREE.PointLight(0xe0e8ff, 0.4, 6, 2);
   surgLight.position.set(cx, WALL_H - 0.9, cz);
   g.add(surgLight);
-  // Instrument tray
   prop(g, PROP_GEOS.box, PM.metal, cx + 1.6, 0.9, cz, 0.5, 0.06, 0.4);
   prop(g, PROP_GEOS.cyl, PM.metal, cx + 1.6, 0.45, cz, 0.08, 0.9, 0.08);
-  // Small blood stain
   prop(g, PROP_GEOS.pln, new THREE.MeshBasicMaterial({color: 0x501010, transparent: true, opacity: 0.7, depthWrite: false}),
        cx - 1.0, 0.02, cz + 0.8, 0.8, 1, 0.8, 0, -Math.PI/2, 0);
   return g;
 }
-
 function buildPantryRoom(room, cx, cz, w, h){
   const g = new THREE.Group();
-  // Shelves with cans
   for (let r = 0; r < 4; r++){
     const sy = 0.3 + r * 0.5;
     prop(g, PROP_GEOS.box, PM.darkwood, cx, sy, cz - h*0.35, w*0.8, 0.05, 0.4);
-    // Cans
     const cans = Math.max(2, Math.min(6, (w * 0.8 / 0.5) | 0));
     for (let c = 0; c < cans; c++){
       const cxx = cx - w*0.35 + c * 0.5;
@@ -1541,44 +1582,34 @@ function buildPantryRoom(room, cx, cz, w, h){
   }
   return g;
 }
-
 function buildWorkshopRoom(room, cx, cz, w, h){
   const g = new THREE.Group();
-  // Workbench
   prop(g, PROP_GEOS.box, PM.darkwood, cx, 0.9, cz - h*0.3, w*0.7, 0.12, 0.6);
   prop(g, PROP_GEOS.box, PM.darkwood, cx - w*0.3, 0.45, cz - h*0.3, 0.1, 0.9, 0.5);
   prop(g, PROP_GEOS.box, PM.darkwood, cx + w*0.3, 0.45, cz - h*0.3, 0.1, 0.9, 0.5);
-  // Tools on bench (small boxes)
   for (let i = 0; i < 4; i++){
     prop(g, PROP_GEOS.box, PM.metal, cx - 0.6 + i * 0.4, 1.0, cz - h*0.3, 0.15, 0.08, 0.15);
   }
-  // Pegboard with hanging tools
   prop(g, PROP_GEOS.pln, PM.wood, cx, 1.8, cz - h*0.45, w*0.6, 1.2, 1);
   return g;
 }
-
 function buildObservatoryRoom(room, cx, cz, w, h){
   const g = new THREE.Group();
-  // Telescope
   prop(g, PROP_GEOS.cyl, PM.metal, cx, 0.5, cz, 0.3, 1.0, 0.3);
   const scope = prop(g, PROP_GEOS.cyl, PM.metal, cx, 1.2, cz, 0.2, 1.6, 0.2);
   scope.rotation.z = 0.6;
   prop(g, PROP_GEOS.cyl, PM.offwhite, cx + 0.7, 1.4, cz, 0.25, 0.2, 0.25);
-  // Star chart on wall
   prop(g, PROP_GEOS.pln, new THREE.MeshBasicMaterial({color: 0x0a0a30, side: THREE.DoubleSide}),
        cx, 1.8, cz - h*0.45, w*0.6, 1.2, 1);
   return g;
 }
-
 function buildLabRoom(room, cx, cz, w, h){
   const g = new THREE.Group();
-  // Two lab benches
   for (const side of [-1, 1]){
     const bx = cx + side * w*0.2;
     prop(g, PROP_GEOS.box, PM.white, bx, 0.85, cz, 0.8, 0.1, h*0.7);
     prop(g, PROP_GEOS.box, PM.metal, bx - 0.35, 0.4, cz, 0.08, 0.85, h*0.7);
     prop(g, PROP_GEOS.box, PM.metal, bx + 0.35, 0.4, cz, 0.08, 0.85, h*0.7);
-    // Beakers
     for (let k = 0; k < 3; k++){
       const bz = cz - h*0.25 + k * (h*0.25);
       prop(g, PROP_GEOS.cyl, Math.random() < 0.5 ? PM.glowGreen : PM.glowBlue, bx, 1.0, bz, 0.1, 0.2, 0.1);
@@ -1586,13 +1617,10 @@ function buildLabRoom(room, cx, cz, w, h){
   }
   return g;
 }
-
 function buildClosetRoom(room, cx, cz, w, h){
   const g = new THREE.Group();
-  // Coats hanging on a rail
-  prop(g, PROP_GEOS.cyl, PM.metal, cx, 1.8, cz, 0.03, w*0.8, 0.03);
-  // Rail bar rotated
-  g.children[g.children.length-1].rotation.z = Math.PI/2;
+  const rail = prop(g, PROP_GEOS.cyl, PM.metal, cx, 1.8, cz, 0.03, w*0.8, 0.03);
+  rail.rotation.z = Math.PI/2;
   const coatMat = [PM.darkfabric, PM.red, PM.blue, PM.fabric];
   const coats = Math.max(2, Math.min(5, (w * 0.8) | 0));
   for (let k = 0; k < coats; k++){
@@ -1601,44 +1629,175 @@ function buildClosetRoom(room, cx, cz, w, h){
   }
   return g;
 }
-
 function buildUtilityRoom(room, cx, cz, w, h){
   const g = new THREE.Group();
-  // Pipes on the ceiling
   for (let k = 0; k < 3; k++){
     const pz = cz - h*0.3 + k * (h*0.3);
     const pipe = prop(g, PROP_GEOS.cyl, PM.metal, cx, WALL_H - 0.3, pz, 0.08, w, 0.08);
     pipe.rotation.z = Math.PI/2;
   }
-  // Electrical box
   prop(g, PROP_GEOS.box, PM.metal, cx - w*0.35, 1.6, cz, 0.3, 0.5, 0.6);
   prop(g, PROP_GEOS.box, PM.glowAmber, cx - w*0.35, 1.85, cz - 0.31, 0.05, 0.05, 0.02);
-  // Water heater
   prop(g, PROP_GEOS.cyl, PM.offwhite, cx + w*0.3, 0.9, cz + h*0.3, 0.4, 1.8, 0.4);
   return g;
 }
 
+/* ---------- NEW HOME-SPECIFIC BUILDERS ---------- */
+function buildDiningRoom(room, cx, cz, w, h){
+  const g = new THREE.Group();
+  const tableW = Math.min(w * 0.6, 3.6);
+  const tableD = Math.min(h * 0.5, 2.0);
+  // Table top
+  prop(g, PROP_GEOS.box, PM.warmwood, cx, 0.75, cz, tableW, 0.1, tableD);
+  // Legs
+  for (const dx of [-tableW/2 + 0.15, tableW/2 - 0.15]){
+    for (const dz of [-tableD/2 + 0.15, tableD/2 - 0.15]){
+      prop(g, PROP_GEOS.box, PM.darkwood, cx + dx, 0.36, cz + dz, 0.08, 0.72, 0.08);
+    }
+  }
+  // Chairs on four sides
+  const chairPositions = [
+    {x: cx, z: cz - tableD/2 - 0.4, ry: 0},
+    {x: cx, z: cz + tableD/2 + 0.4, ry: Math.PI},
+    {x: cx - tableW/2 - 0.4, z: cz, ry: Math.PI/2},
+    {x: cx + tableW/2 + 0.4, z: cz, ry: -Math.PI/2},
+  ];
+  for (const cp of chairPositions){
+    if (Math.abs(cp.x - cx) > w/2 - 0.3) continue;
+    if (Math.abs(cp.z - cz) > h/2 - 0.3) continue;
+    prop(g, PROP_GEOS.box, PM.darkwood, cp.x, 0.45, cp.z, 0.4, 0.1, 0.4, cp.ry);
+    const backOff = 0.2;
+    const bx = cp.x + Math.sin(cp.ry) * backOff;
+    const bz = cp.z + Math.cos(cp.ry) * backOff;
+    prop(g, PROP_GEOS.box, PM.darkwood, bx, 0.75, bz, 0.4, 0.6, 0.05, cp.ry);
+  }
+  // Hanging chandelier
+  prop(g, PROP_GEOS.cyl, PM.metal, cx, WALL_H - 0.5, cz, 0.04, 0.9, 0.04);
+  prop(g, PROP_GEOS.sph, PM.glowWarm, cx, WALL_H - 0.95, cz, 0.18, 0.14, 0.18);
+  // Centerpiece bowl
+  prop(g, PROP_GEOS.cyl, PM.offwhite, cx, 0.85, cz, 0.25, 0.08, 0.25);
+  return g;
+}
+function buildNurseryRoom(room, cx, cz, w, h){
+  const g = new THREE.Group();
+  const rng = () => Math.random() - 0.5;
+  // Crib
+  const crx = cx + rng() * (w * 0.25);
+  const crz = cz + rng() * (h * 0.25);
+  const cribW = 1.2, cribD = 0.7, cribH = 0.8;
+  prop(g, PROP_GEOS.box, PM.white, crx, 0.15, crz, cribW, 0.3, cribD);
+  prop(g, PROP_GEOS.box, PM.offwhite, crx, 0.4, crz, cribW * 0.9, 0.15, cribD * 0.9);
+  // Rails
+  for (let i = 0; i < 6; i++){
+    const rx = crx - cribW/2 + 0.1 + i * (cribW - 0.2) / 5;
+    prop(g, PROP_GEOS.box, PM.white, rx, 0.65, crz - cribD/2 + 0.05, 0.03, cribH, 0.03);
+    prop(g, PROP_GEOS.box, PM.white, rx, 0.65, crz + cribD/2 - 0.05, 0.03, cribH, 0.03);
+  }
+  // Teddy bear head
+  prop(g, PROP_GEOS.sph, PM.wood, crx + 0.3, 0.55, crz, 0.15, 0.15, 0.15);
+  // Toy blocks on floor
+  for (let i = 0; i < 4; i++){
+    const bx = cx + rng() * w * 0.6;
+    const bz = cz + rng() * h * 0.6;
+    const col = Math.random() < 0.5 ? PM.red : PM.blue;
+    prop(g, PROP_GEOS.box, col, bx, 0.15, bz, 0.2, 0.2, 0.2, Math.random() * TWO_PI);
+  }
+  // Wall decal - mobile
+  prop(g, PROP_GEOS.cyl, PM.metal, cx, WALL_H - 0.3, cz, 0.02, 0.6, 0.02);
+  return g;
+}
+function buildLaundryRoom(room, cx, cz, w, h){
+  const g = new THREE.Group();
+  const rng = () => Math.random() - 0.5;
+  // Washer
+  const wx = cx - w * 0.2;
+  prop(g, PROP_GEOS.box, PM.white, wx, 0.5, cz - h * 0.3, 0.7, 1.0, 0.7);
+  prop(g, PROP_GEOS.cyl, PM.metal, wx, 0.75, cz - h * 0.3 + 0.36, 0.25, 0.03, 0.25, 0, Math.PI/2, 0);
+  // Dryer
+  const dx = cx + w * 0.2;
+  prop(g, PROP_GEOS.box, PM.white, dx, 0.5, cz - h * 0.3, 0.7, 1.0, 0.7);
+  prop(g, PROP_GEOS.cyl, PM.metal, dx, 0.75, cz - h * 0.3 + 0.36, 0.25, 0.03, 0.25, 0, Math.PI/2, 0);
+  // Laundry basket
+  prop(g, PROP_GEOS.cyl, PM.fabric, cx + rng() * w * 0.3, 0.35, cz + h * 0.2, 0.3, 0.7, 0.3);
+  return g;
+}
+function buildHallwayRoom(room, cx, cz, w, h){
+  const g = new THREE.Group();
+  // Picture frames along the walls
+  const frames = [
+    {x: cx, z: cz - h*0.4, ry: 0,      off: -h*0.4},
+    {x: cx, z: cz + h*0.4, ry: Math.PI, off: h*0.4},
+    {x: cx - w*0.4, z: cz, ry: Math.PI/2, off: -w*0.4},
+    {x: cx + w*0.4, z: cz, ry: -Math.PI/2, off: w*0.4},
+  ];
+  for (const f of frames){
+    // Frame border
+    prop(g, PROP_GEOS.box, PM.darkwood, f.x, 1.8, f.z, 0.5, 0.7, 0.06, f.ry);
+    // Inner picture
+    const picMat = Math.random() < 0.5 ? PM.book2 : PM.book4;
+    prop(g, PROP_GEOS.pln, picMat, f.x, 1.8, f.z, 0.42, 0.6, 1, f.ry);
+  }
+  // Small console table
+  prop(g, PROP_GEOS.box, PM.darkwood, cx, 0.75, cz, 0.9, 0.08, 0.35);
+  prop(g, PROP_GEOS.box, PM.darkwood, cx - 0.35, 0.4, cz, 0.08, 0.75, 0.3);
+  prop(g, PROP_GEOS.box, PM.darkwood, cx + 0.35, 0.4, cz, 0.08, 0.75, 0.3);
+  // Vase on table
+  prop(g, PROP_GEOS.cyl, PM.blue, cx, 0.9, cz, 0.1, 0.2, 0.1);
+  return g;
+}
+function buildAtticRoom(room, cx, cz, w, h){
+  const g = new THREE.Group();
+  const rng = () => Math.random() - 0.5;
+  // Roof beams (visual)
+  for (let k = 0; k < 3; k++){
+    const bx = cx - w*0.35 + k * (w*0.35);
+    prop(g, PROP_GEOS.box, PM.darkwood, bx, WALL_H - 0.3, cz, 0.15, 0.15, h);
+  }
+  // Old boxes and trunks
+  for (let i = 0; i < 6; i++){
+    const bx = cx + rng() * w * 0.6;
+    const bz = cz + rng() * h * 0.6;
+    const s = 0.5 + Math.random() * 0.4;
+    prop(g, PROP_GEOS.box, PM.wood, bx, s/2, bz, s, s, s, Math.random() * TWO_PI);
+  }
+  // Old rocking chair
+  prop(g, PROP_GEOS.box, PM.darkwood, cx - w*0.3, 0.4, cz + h*0.3, 0.5, 0.1, 0.5);
+  prop(g, PROP_GEOS.box, PM.darkwood, cx - w*0.3, 0.7, cz + h*0.3 - 0.2, 0.5, 0.6, 0.08);
+  // Hanging light bulb
+  prop(g, PROP_GEOS.cyl, PM.black, cx, WALL_H - 0.6, cz, 0.02, 1.2, 0.02);
+  prop(g, PROP_GEOS.sph, PM.glowWarm, cx, WALL_H - 1.2, cz, 0.1, 0.12, 0.1);
+  return g;
+}
+function buildBasementRoom(room, cx, cz, w, h){
+  const g = new THREE.Group();
+  const rng = () => Math.random() - 0.5;
+  // Pipes across ceiling
+  for (let k = 0; k < 3; k++){
+    const pz = cz - h*0.3 + k * (h*0.3);
+    const pipe = prop(g, PROP_GEOS.cyl, PM.rust, cx, WALL_H - 0.25, pz, 0.1, w, 0.1);
+    pipe.rotation.z = Math.PI/2;
+  }
+  // Old furniture covered in cloth
+  for (let i = 0; i < 4; i++){
+    const bx = cx + rng() * w * 0.6;
+    const bz = cz + rng() * h * 0.6;
+    prop(g, PROP_GEOS.box, PM.offwhite, bx, 0.5, bz, 1.2, 1.0, 0.9, Math.random() * TWO_PI);
+  }
+  // Furnace
+  prop(g, PROP_GEOS.box, PM.rust, cx - w*0.3, 0.9, cz - h*0.3, 0.9, 1.8, 0.9);
+  prop(g, PROP_GEOS.box, PM.glowRed, cx - w*0.3, 1.0, cz - h*0.3 + 0.46, 0.3, 0.15, 0.02);
+  return g;
+}
 const PROPS_FOR = {
-  bathtub: buildBathtubRoom,
-  bathroom: buildBathroomRoom,
-  office: buildOfficeRoom,
-  storage: buildStorageRoom,
-  bedroom: buildBedroomRoom,
-  kitchen: buildKitchenRoom,
-  living: buildLivingRoom,
-  library: buildLibraryRoom,
-  server: buildServerRoom,
-  chapel: buildChapelRoom,
-  pool: buildPoolRoom,
-  mirror: buildMirrorRoom,
-  padded: buildPaddedRoom,
-  surgery: buildSurgeryRoom,
-  pantry: buildPantryRoom,
-  workshop: buildWorkshopRoom,
-  observatory: buildObservatoryRoom,
-  lab: buildLabRoom,
-  closet: buildClosetRoom,
-  utility: buildUtilityRoom,
+  bathtub: buildBathtubRoom, bathroom: buildBathroomRoom, office: buildOfficeRoom,
+  storage: buildStorageRoom, bedroom: buildBedroomRoom, kitchen: buildKitchenRoom,
+  living: buildLivingRoom, library: buildLibraryRoom, server: buildServerRoom,
+  chapel: buildChapelRoom, pool: buildPoolRoom, mirror: buildMirrorRoom,
+  padded: buildPaddedRoom, surgery: buildSurgeryRoom, pantry: buildPantryRoom,
+  workshop: buildWorkshopRoom, observatory: buildObservatoryRoom, lab: buildLabRoom,
+  closet: buildClosetRoom, utility: buildUtilityRoom,
+  dining: buildDiningRoom, nursery: buildNurseryRoom, laundry: buildLaundryRoom,
+  hallway: buildHallwayRoom, attic: buildAtticRoom, basement: buildBasementRoom,
 };
 
 function buildSpecialRoomProps(){
@@ -1648,22 +1807,99 @@ function buildSpecialRoomProps(){
     if (!room.type) continue;
     const builder = PROPS_FOR[room.type];
     if (!builder) continue;
-
     const cx = (room.x + (room.w-1)/2 - HALF_COLS) * CELL;
     const cz = (room.y + (room.h-1)/2 - HALF_ROWS) * CELL;
     const wWorld = room.w * CELL;
     const hWorld = room.h * CELL;
-
-    // Too small for props? skip
     if (wWorld < 6 || hWorld < 6) continue;
-
     const group = builder(room, cx, cz, wWorld, hWorld);
     group.userData.roomType = room.type;
     addLevelObj(group);
   }
 }
 
-/* ---------- THEMED PROPS (existing backrooms/garden/school details) ---------- */
+/* ---------- HOME FILLER PROPS ---------- */
+function buildHomeProps(theme, open){
+  const dummy = new THREE.Object3D();
+
+  // Ceiling pendant light bulbs (visual, additive-ish; no actual point lights)
+  const lightCells = [];
+  for (let j = 1; j < ROWS-1; j++){
+    for (let i = 1; i < COLS-1; i++){
+      if (grid[j][i] === 0 && Math.random() < 0.05) lightCells.push({i,j});
+    }
+  }
+  if (lightCells.length){
+    const bulbGeo = new THREE.SphereGeometry(0.11, 6, 5);
+    const bulbMat = new THREE.MeshBasicMaterial({color: 0xffd898});
+    const cordGeo = new THREE.CylinderGeometry(0.015, 0.015, 0.55, 4);
+    const cordMat = new THREE.MeshBasicMaterial({color: 0x2a1c10});
+    const bulbIM = new THREE.InstancedMesh(bulbGeo, bulbMat, lightCells.length);
+    const cordIM = new THREE.InstancedMesh(cordGeo, cordMat, lightCells.length);
+    bulbIM.frustumCulled = false; cordIM.frustumCulled = false;
+    for (let k = 0; k < lightCells.length; k++){
+      const p = cellToWorld(lightCells[k].i, lightCells[k].j);
+      dummy.position.set(p.x, WALL_H - 0.6, p.z);
+      dummy.rotation.set(0,0,0); dummy.scale.set(1,1,1);
+      dummy.updateMatrix(); bulbIM.setMatrixAt(k, dummy.matrix);
+      dummy.position.set(p.x, WALL_H - 0.28, p.z);
+      dummy.updateMatrix(); cordIM.setMatrixAt(k, dummy.matrix);
+    }
+    bulbIM.instanceMatrix.needsUpdate = true;
+    cordIM.instanceMatrix.needsUpdate = true;
+    addLevelObj(bulbIM); addLevelObj(cordIM);
+  }
+
+  // Wall-mounted picture frames on walls adjacent to open cells
+  const frameCells = [];
+  for (let j = 1; j < ROWS-1; j++){
+    for (let i = 1; i < COLS-1; i++){
+      if (grid[j][i] !== 0) continue;
+      let adjWall = 0, wdx = 0, wdz = 0;
+      for (let d = 0; d < 4; d++){
+        const di = DIRS4[d][0], dj = DIRS4[d][1];
+        if (grid[j+dj][i+di] === 1){ adjWall++; wdx = di; wdz = dj; }
+      }
+      if (adjWall === 1 && Math.random() < 0.10) frameCells.push({i,j, wdx, wdz});
+    }
+  }
+  if (frameCells.length){
+    const frameGeo = new THREE.BoxGeometry(0.5, 0.7, 0.06);
+    const im = new THREE.InstancedMesh(frameGeo, PM.darkwood, frameCells.length);
+    im.frustumCulled = false;
+    for (let k = 0; k < frameCells.length; k++){
+      const c = frameCells[k];
+      const p = cellToWorld(c.i, c.j);
+      dummy.position.set(p.x + c.wdx * 2.35, 1.8, p.z + c.wdz * 2.35);
+      dummy.rotation.set(0, c.wdx !== 0 ? Math.PI/2 : 0, 0);
+      dummy.scale.set(1,1,1);
+      dummy.updateMatrix(); im.setMatrixAt(k, dummy.matrix);
+    }
+    im.instanceMatrix.needsUpdate = true;
+    addLevelObj(im);
+  }
+
+  // Scattered small rugs on floors
+  const rugCount = Math.min(40, Math.floor(open.length * 0.10));
+  if (rugCount){
+    const rugColors = [0x8a3a30, 0x305a40, 0x4a3060, 0x806030, 0x603020];
+    const rugs = new THREE.Group();
+    for (let k = 0; k < rugCount; k++){
+      const c = open[(k*13) % open.length];
+      const p = cellToWorld(c.i, c.j);
+      const m = new THREE.Mesh(PROP_GEOS.pln, new THREE.MeshLambertMaterial({color: rugColors[(Math.random()*rugColors.length)|0]}));
+      m.rotation.x = -Math.PI/2;
+      m.position.set(p.x + (Math.random()-0.5)*3.0, 0.012, p.z + (Math.random()-0.5)*3.0);
+      const s = 0.9 + Math.random() * 0.9;
+      m.scale.set(s, s, 1);
+      m.rotation.z = Math.random() * TWO_PI;
+      rugs.add(m);
+    }
+    addLevelObj(rugs);
+  }
+}
+
+/* ---------- THEMED FILLER PROPS (existing) ---------- */
 function buildBackroomsProps(theme, open){
   const dummy = new THREE.Object3D();
   const wallTex = getBackWallTex();
@@ -1929,7 +2165,21 @@ const NOTES_L2 = [
   "The gardener is still here. You will not see them.",
   "Three of them prune the hedges. Three of them never blink.",
 ];
-const NOTES_L3 = [
+const NOTES_HOME = [
+  "THE HOME — Everything is where it should be. That's the problem.",
+  "Someone set the table for four. Only one chair is pulled out.",
+  "I recognise this house. I have never been here before.",
+  "The picture frames are empty. The glass is warm to the touch.",
+  "There is a bath running in a room I cannot find.",
+  "The piano plays when I am not in the room. It is polite about it.",
+  "Someone's laundry is still in the dryer. It has been running for days.",
+  "There are three of them here too. They move like family.",
+  "The bedrooms are made. The beds are still warm.",
+  "I sat on the sofa and the cushions sank as if someone was already sitting there.",
+  "Do not eat anything from the kitchen. Do not drink from the taps.",
+  "The front door leads to the hallway. The back door leads here.",
+];
+const NOTES_SCHOOL = [
   "ATTENDANCE — Roll call said my name. I did not answer.",
   "The bell rang at 3:33. There is no bell in this school.",
   "Someone wrote 'HE SEES YOU' on every chalkboard.",
@@ -1940,6 +2190,7 @@ const NOTES_L3 = [
   "Do not run in the halls. It can hear running.",
   "I hid under a desk for six hours. It stood in the doorway.",
   "There are three of them. One for each hallway. There are only two hallways.",
+  "My legs stopped aching hours ago. I can run forever now.",
 ];
 
 /* Collectible shared geo/mats */
@@ -2000,10 +2251,17 @@ function buildExit(theme){
   exitGroup.visible = true;
   exitMat.color.setHex(theme.exitColor);
   exitLight.color.setHex(theme.exitLight);
+  exitBeaconActive = false;
+  _lastBeaconHintAt = -999;
+  beaconRingMat.opacity = 0;
+  beaconHaloMat.opacity = 0;
+  beaconLight.intensity = 0;
+  beaconRingMat.color.setHex(0xffffff);
+  beaconHaloMat.color.setHex(0xffffff);
 }
 
 function spawnEnemies(){
-  const isLevel3 = currentLevel === 3;
+  const isFinalLevel = (currentLevel === MAX_LEVEL);
   const candidates = [];
   for (let j = 1; j < ROWS-1; j++){
     for (let i = 1; i < COLS-1; i++){
@@ -2017,13 +2275,13 @@ function spawnEnemies(){
   const minSep = Math.max(5, Math.floor(Math.min(COLS, ROWS) * 0.30));
   const chosen = [];
   let nearBand = null;
-  if (isLevel3){
+  if (isFinalLevel){
     nearBand = candidates.filter(c => c.d >= 6 && c.d <= 16);
     if (!nearBand.length) nearBand = candidates.slice(0, Math.max(1, candidates.length >> 2));
   }
   for (let k = 0; k < enemies.length; k++){
     let pick = null;
-    if (isLevel3){
+    if (isFinalLevel){
       for (let tries = 0; tries < 60; tries++){
         const c = nearBand[(Math.random()*nearBand.length)|0];
         if (chosen.every(o => Math.hypot(o.i - c.i, o.j - c.j) >= minSep)){ pick = c; break; }
@@ -2072,13 +2330,32 @@ function buildLevel(levelNum){
   exitDenyCooldown = false;
   updatePaperCounter(false);
 
+  levelElapsed = 0;
+  exitBeaconActive = false;
+  _lastBeaconHintAt = -999;
+  timerEl.classList.remove('warn');
+
+  // Infinite stamina + 1.5x speed on the FINAL level only
+  if (levelNum === MAX_LEVEL){
+    staminaFill.classList.add('infinite');
+  } else {
+    staminaFill.classList.remove('infinite');
+  }
+
   scene.background = new THREE.Color(theme.fog);
   scene.fog = new THREE.Fog(theme.fog, theme.fogNear, theme.fogFar);
   ambientLight.color.setHex(theme.ambient); ambientLight.intensity = theme.ambientI;
   hemi.color.setHex(theme.hemiSky); hemi.groundColor.setHex(theme.hemiGround); hemi.intensity = theme.hemiI;
-  playerLight.color.setHex(theme.kind === 'school' ? 0xb8c4e0 : 0xffeaa0);
-  playerLight.intensity = theme.kind === 'school' ? 0.32 : 0.55;
-  flashlight.color.setHex(theme.kind === 'school' ? 0xdfe8ff : 0xfff2c0);
+
+  // Player light color per theme
+  if (theme.kind === 'school') playerLight.color.setHex(0xb8c4e0);
+  else if (theme.kind === 'home') playerLight.color.setHex(0xffb070);
+  else playerLight.color.setHex(0xffeaa0);
+  playerLight.intensity = theme.kind === 'school' ? 0.32 : (theme.kind === 'home' ? 0.60 : 0.55);
+
+  if (theme.kind === 'school') flashlight.color.setHex(0xdfe8ff);
+  else if (theme.kind === 'home') flashlight.color.setHex(0xffd8a0);
+  else flashlight.color.setHex(0xfff2c0);
 
   grid = generateMazeForLevel(levelNum);
   rebuildWallMask();
@@ -2101,7 +2378,6 @@ function buildLevel(levelNum){
   buildWalls(theme);
   buildPanels(theme);
 
-  // Build the list of open cells excluding start and exit
   const open = [];
   for (let j = 1; j < ROWS-1; j++)
     for (let i = 1; i < COLS-1; i++)
@@ -2114,12 +2390,11 @@ function buildLevel(levelNum){
     const t = open[k]; open[k] = open[r]; open[r] = t;
   }
 
-  // Themed filler props first
   if (theme.kind === 'garden') buildGardenProps(theme, open);
   else if (theme.kind === 'school') buildSchoolProps(theme, open);
+  else if (theme.kind === 'home') buildHomeProps(theme, open);
   else buildBackroomsProps(theme, open);
 
-  // THEN special rooms (they take priority visually)
   buildSpecialRoomProps();
 
   buildCollectibles(open);
@@ -2382,6 +2657,18 @@ function playLevel3Shriek(){
     o.connect(f); f.connect(g); g.connect(sfxGain); o.start(t); o.stop(t + 0.8);
   } catch (err) {}
 }
+function playBeaconPing(){
+  if (!actx) return;
+  try {
+    const t = actx.currentTime;
+    const o = actx.createOscillator(); o.type = 'sine';
+    o.frequency.setValueAtTime(1200, t); o.frequency.exponentialRampToValueAtTime(600, t + 0.5);
+    const g = actx.createGain();
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.14, t + 0.03);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.7);
+    o.connect(g); g.connect(sfxGain); o.start(t); o.stop(t + 0.75);
+  } catch (err) {}
+}
 
 /* ============================================================
    14. SCARE FACE
@@ -2511,7 +2798,7 @@ function winGame(){
   if (!isTouch && document.pointerLockElement) document.exitPointerLock?.();
   endScreen.classList.add('win'); endScreen.classList.remove('lose');
   endTitle.textContent = 'YOU ESCAPED';
-  endMsg.textContent = `ALL 3 LEVELS CLEARED · SCORE ${player.score} · TIME ${formatTime(elapsed)}`;
+  endMsg.textContent = `ALL ${MAX_LEVEL} LEVELS CLEARED · SCORE ${player.score} · TIME ${formatTime(elapsed)}`;
   againBtn.textContent = 'PLAY AGAIN';
   if (exitGain) exitGain.gain.value = 0;
   flashScreen(600);
@@ -2538,9 +2825,13 @@ function onReachExit(){
       nextLevelBtn.textContent = 'ENTER THE SCHOOL';
     } else {
       levelScreen.classList.remove('final');
-      levelMsg.textContent = currentLevel === 1
-        ? 'You found the exit. Something greener waits below.'
-        : 'You found the exit.';
+      if (currentLevel === 1){
+        levelMsg.textContent = 'You found the exit. Something greener waits below.';
+      } else if (currentLevel === 2){
+        levelMsg.textContent = 'You found the exit. A house waits below. The lights are still on.';
+      } else {
+        levelMsg.textContent = 'You found the exit.';
+      }
       nextLevelBtn.textContent = 'DESCEND';
     }
     setState('transition');
@@ -2560,7 +2851,8 @@ function goToNextLevel(){
   setState('playing');
   let hint;
   if (next === 2) hint = `Find ${PAPERS_NEEDED} papers, then reach the golden gate. Three of them wander here.`;
-  else if (next === 3) hint = `Find ${PAPERS_NEEDED} papers. DO NOT RUN. THEY CAN HEAR RUNNING.`;
+  else if (next === 3) hint = `Find ${PAPERS_NEEDED} papers, then reach the amber light. It looks like home. It is not.`;
+  else if (next === 4) hint = `Find ${PAPERS_NEEDED} papers. DO NOT RUN. THEY CAN HEAR RUNNING. Your legs never tire here.`;
   else hint = `Find ${PAPERS_NEEDED} papers.`;
   showHint(hint, 5600);
   if (!isTouch){ const p = renderer.domElement.requestPointerLock?.(); if (p && p.catch) p.catch(() => {}); }
@@ -2586,16 +2878,28 @@ function updatePlayer(dt){
     dirF = kf / kmag; dirS = ks / kmag;
     baseSpeed = 3.4; moving = true;
   }
+
+  const isFinalLevel = (currentLevel === MAX_LEVEL);
   const wantsSprint = (keys['ShiftLeft']||keys['ShiftRight']||sprintTouch) && moving;
-  if (wantsSprint && player.stamina > 1){
-    player.sprinting = true; baseSpeed *= 1.75;
-    player.stamina = Math.max(0, player.stamina - player.staminaDrain * dt);
+
+  if (isFinalLevel){
+    // Infinite stamina + faster baseline
+    player.stamina = player.maxStamina;
+    if (wantsSprint){ player.sprinting = true; baseSpeed *= 1.75; }
+    else player.sprinting = false;
+    // Extra 1.5x speed on the final level (stacks with sprint)
+    baseSpeed *= FINAL_LEVEL_SPEED_MULT;
   } else {
-    player.sprinting = false;
-    player.stamina = Math.min(player.maxStamina, player.stamina + player.staminaRegen * dt);
+    if (wantsSprint && player.stamina > 1){
+      player.sprinting = true; baseSpeed *= 1.75;
+      player.stamina = Math.max(0, player.stamina - player.staminaDrain * dt);
+    } else {
+      player.sprinting = false;
+      player.stamina = Math.min(player.maxStamina, player.stamina + player.staminaRegen * dt);
+    }
   }
   staminaFill.style.width = (player.stamina / player.maxStamina * 100) + '%';
-  staminaFill.classList.toggle('low', player.stamina < 25);
+  staminaFill.classList.toggle('low', !isFinalLevel && player.stamina < 25);
 
   const sinY = Math.sin(yaw), cosY = Math.cos(yaw);
   const dx = (-sinY*dirF + cosY*dirS) * baseSpeed * dt;
@@ -2639,7 +2943,8 @@ function updatePlayer(dt){
         }
         let pool = NOTES_L1;
         if (currentTheme.kind === 'garden') pool = NOTES_L2;
-        else if (currentTheme.kind === 'school') pool = NOTES_L3;
+        else if (currentTheme.kind === 'home') pool = NOTES_HOME;
+        else if (currentTheme.kind === 'school') pool = NOTES_SCHOOL;
         showLore(pool[(Math.random()*pool.length)|0], 4200);
       } else if (c.type === 'battery'){
         playBatterySound(); player.score += 15;
@@ -2671,15 +2976,14 @@ function updatePlayer(dt){
   }
 }
 
-/* ---- Enemy update — FIXED stuck-at-wall bug ---- */
 function updateEnemy(dt){
   const diff = DIFF[SETTINGS.diff] || DIFF[1];
   const theme = currentTheme;
+  const isFinalLevel = (currentLevel === MAX_LEVEL);
   const detectRange = theme.detectOverride || diff.detect;
   const detect2 = detectRange * detectRange;
 
   const ppx = player.pos.x, ppz = player.pos.z;
-  // Player cell — computed once per frame
   const pci = Math.round(ppx/CELL + HALF_COLS);
   const pcj = Math.round(ppz/CELL + HALF_ROWS);
 
@@ -2696,7 +3000,7 @@ function updateEnemy(dt){
     if (distSq < closestSq) closestSq = distSq;
 
     const chasing = distSq < detect2;
-    if (currentLevel === 3 && chasing && !e.wasChasing){
+    if (isFinalLevel && chasing && !e.wasChasing){
       playLevel3Shriek();
       if (navigator.vibrate) navigator.vibrate([80, 40, 120]);
     }
@@ -2704,15 +3008,10 @@ function updateEnemy(dt){
     e.chasing = chasing;
     if (chasing) anyChasing = true;
 
-    // Enemy cell
     const eci = Math.round(ex/CELL + HALF_COLS);
     const ecj = Math.round(ez/CELL + HALF_ROWS);
     const inSameCell = (eci === pci && ecj === pcj);
 
-    // ---- DIRECT CHASE when the enemy is in the player's cell ----
-    // This is the fix for "stuck at wall" — the enemy no longer paths to
-    // the cell center (which can be 1.9 units away when you hug a wall),
-    // it moves toward the player's actual position with wall sliding.
     let didDirect = false;
     if (chasing && inSameCell){
       let vx = ppx - ex, vz = ppz - ez;
@@ -2721,29 +3020,24 @@ function updateEnemy(dt){
         vx /= len; vz /= len;
         const spd = diff.chase * enemySpeedMult * dt;
         const nx = ex + vx * spd, nz = ez + vz * spd;
-        // Move with wall sliding so we don't clip
-        if (!blockedAt(nx, nz, 0.35)){
-          e.pos.x = nx; e.pos.z = nz;
-        } else {
+        if (!blockedAt(nx, nz, 0.35)){ e.pos.x = nx; e.pos.z = nz; }
+        else {
           if (!blockedAt(nx, ez, 0.35)) e.pos.x = nx;
           else if (!blockedAt(ex, nz, 0.35)) e.pos.z = nz;
         }
         e.group.rotation.y = Math.atan2(vx, vz);
       }
       didDirect = true;
-      // Force repath soon in case we leave the cell
       if (e.pathTimer > 0.15) e.pathTimer = 0.15;
     }
 
-    // ---- Normal BFS path following when not in the same cell ----
     if (!didDirect){
       e.pathTimer -= dt;
-      const repathFast = currentLevel === 3 ? 0.12 : 0.24;
+      const repathFast = isFinalLevel ? 0.12 : 0.24;
       if (e.pathTimer <= 0 || !e.next){
         e.pathTimer = (chasing ? repathFast : 0.95) + Math.random()*0.15;
         if (chasing){
           e.next = bfsStep(eci, ecj, pci, pcj);
-          // If BFS fails (unreachable for some reason), aim directly at the player
           if (!e.next){
             const spd = diff.chase * enemySpeedMult * dt;
             let vx = ppx - ex, vz = ppz - ez;
@@ -2770,7 +3064,6 @@ function updateEnemy(dt){
       if (e.next){
         const tx = (e.next.i - HALF_COLS) * CELL;
         const tz = (e.next.j - HALF_ROWS) * CELL;
-        // SPECIAL: if the next cell is the player's cell, aim at player instead of center
         const targetIsPlayer = (e.next.i === pci && e.next.j === pcj && chasing);
         const finalX = targetIsPlayer ? ppx : tx;
         const finalZ = targetIsPlayer ? ppz : tz;
@@ -2782,10 +3075,8 @@ function updateEnemy(dt){
           vx /= len; vz /= len;
           const spd = (chasing ? diff.chase : diff.wander) * enemySpeedMult;
           const nx = ex + vx*spd*dt, nz = ez + vz*spd*dt;
-          // Always respect walls — prevents clipping into them
-          if (!blockedAt(nx, nz, 0.35)){
-            e.pos.x = nx; e.pos.z = nz;
-          } else {
+          if (!blockedAt(nx, nz, 0.35)){ e.pos.x = nx; e.pos.z = nz; }
+          else {
             if (!blockedAt(nx, ez, 0.35)) e.pos.x = nx;
             else if (!blockedAt(ex, nz, 0.35)) e.pos.z = nz;
           }
@@ -2796,20 +3087,17 @@ function updateEnemy(dt){
 
     e.group.position.set(e.pos.x, 0, e.pos.z);
 
-    // Eye/glow pulse
     const pulse = chasing ? (0.55 + Math.sin(nowMs*0.012 + e.phase)*0.45) : 0.25;
-    if (currentLevel === 3){
+    if (isFinalLevel){
       e.eyeMat.color.setRGB(0.35 + pulse*0.65, pulse*0.12, pulse*0.12);
       e.glowMat.opacity = chasing ? (0.5 + pulse*0.35) : 0.4;
     } else {
       e.eyeMat.color.setRGB(1, 0.15 + pulse*0.45, 0.05);
     }
 
-    // Attack check — slightly more forgiving (1.5 units)
     if (distSq < 2.25){ gameOver(); return; }
   }
 
-  // Mutual separation
   const MIN_SEP = 1.6, MIN_SEP2 = MIN_SEP * MIN_SEP;
   for (let a = 0; a < enemies.length; a++){
     for (let b = a+1; b < enemies.length; b++){
@@ -2833,7 +3121,7 @@ function updateEnemy(dt){
   const dist = Math.sqrt(closestSq);
   if (humGain && actx){
     const prox = Math.max(0, 1 - dist/18);
-    const baseHum = currentLevel === 3 ? 0.03 : 0.05;
+    const baseHum = isFinalLevel ? 0.03 : 0.05;
     const chaseBoost = anyChasing ? 0.06 : 0;
     humGain.gain.setTargetAtTime(baseHum + prox*0.13 + chaseBoost, actx.currentTime, 0.2);
   }
@@ -2845,6 +3133,55 @@ function updateEnemy(dt){
 function updateExit(now){
   const t = now * 2;
   const locked = papersCollected < PAPERS_NEEDED;
+
+  const shouldBeacon = levelElapsed >= EXIT_BEACON_TIME;
+  if (shouldBeacon && !exitBeaconActive){
+    exitBeaconActive = true;
+    showHint("THE EXIT IS CALLING — FOLLOW THE FLASHING LIGHT", 5200);
+    if (navigator.vibrate) navigator.vibrate([40, 30, 40, 30, 80]);
+  }
+
+  if (exitBeaconActive){
+    const fast = now * 6;
+    const flash = (Math.sin(fast) + 1) * 0.5;
+    const hot = flash * flash;
+
+    if (locked){
+      beaconRingMat.color.setRGB(1, 0.15 + hot*0.2, 0.15);
+      beaconHaloMat.color.setRGB(1, 0.15 + hot*0.2, 0.15);
+      beaconLight.color.setRGB(1, 0.2, 0.2);
+      exitMat.color.setHex(0xff1818);
+      exitLight.color.setHex(0xff1818);
+    } else {
+      const col = new THREE.Color(currentTheme.exitColor);
+      beaconRingMat.color.copy(col);
+      beaconHaloMat.color.copy(col);
+      beaconLight.color.copy(col);
+      exitMat.color.setHex(currentTheme.exitColor);
+      exitLight.color.setHex(currentTheme.exitLight);
+    }
+
+    beaconRingMat.opacity = 0.15 + hot * 0.75;
+    beaconHaloMat.opacity = 0.05 + hot * 0.55;
+    beaconLight.intensity = 0.4 + hot * 3.2;
+    beaconRing.scale.setScalar(0.9 + hot * 0.5);
+    beaconHalo.scale.setScalar(0.9 + hot * 0.35);
+    beaconRing.lookAt(camera.position.x, 0.05, camera.position.z);
+    beaconHalo.lookAt(camera.position.x, beaconHalo.position.y + exitGroup.position.y, camera.position.z);
+    exitGroup.rotation.y = 0;
+
+    exitMat.opacity = 0.55 + hot * 0.4;
+    exitLight.intensity = 1.8 + hot * 3.0;
+
+    if (now - _lastBeaconHintAt > 22){
+      _lastBeaconHintAt = now;
+      playBeaconPing();
+      const d = Math.hypot(player.pos.x - exitPos.x, player.pos.z - exitPos.z);
+      showHint(`THE EXIT BECKONS — ${Math.round(d)}m AWAY`, 2600);
+    }
+    return;
+  }
+
   if (locked){
     exitMat.color.setHex(0xff1818); exitLight.color.setHex(0xff1818);
     exitMat.opacity = 0.30 + Math.sin(t*1.1)*0.10;
@@ -2855,12 +3192,17 @@ function updateExit(now){
     exitLight.intensity = 1.5 + Math.sin(t*1.3)*0.5;
   }
   exitGroup.rotation.y = Math.sin(t*0.5) * 0.06;
+  beaconRingMat.opacity = 0;
+  beaconHaloMat.opacity = 0;
+  beaconLight.intensity = 0;
+
   const d = Math.hypot(player.pos.x - exitPos.x, player.pos.z - exitPos.z);
   if (exitGain && actx){
     const prox = Math.max(0, 1 - d/24);
     exitGain.gain.setTargetAtTime(prox*prox*0.10, actx.currentTime, 0.25);
   }
 }
+
 function updateCollectibles(t){
   for (let i = 0; i < collectibles.length; i++){
     const c = collectibles[i];
@@ -2947,9 +3289,14 @@ function animate(){
 
   if (state === 'playing'){
     elapsed += dt;
+    levelElapsed += dt;
     updatePlayer(dt);
     if (state === 'playing') updateEnemy(dt);
     updateExit(now);
+
+    if (levelElapsed >= EXIT_BEACON_TIME) timerEl.classList.add('warn');
+    else timerEl.classList.remove('warn');
+
     _timerAccum += dt;
     if (_timerAccum >= 0.25){ _timerAccum = 0; timerEl.textContent = formatTime(elapsed); }
   } else if (state === 'menu'){
