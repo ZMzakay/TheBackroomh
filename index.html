@@ -176,6 +176,10 @@
   #adminScreen .settings-list{width:min(430px, 92vw);text-align:left;margin-bottom:14px;}
   #adminScreen .setting-row label{color:#ffc0c0;}
   #adminScreen .setting-row .val{color:#ffd0d0;}
+  .admin-sec{color:#ff8080;font-size:11px;letter-spacing:4px;opacity:.7;
+    margin:16px 0 4px;padding-top:12px;border-top:1px solid rgba(255,80,80,.18);
+    text-align:left;width:min(430px,92vw);}
+  .admin-sec:first-child{border-top:none;margin-top:0;padding-top:0;}
   #adminCodeScreen{z-index:175;
     background:radial-gradient(ellipse at 50% 42%, #1a0606 0%, #0a0202 55%, #000 100%);}
   #adminCodeScreen h2{color:#ff4040;text-shadow:0 0 30px rgba(255,50,50,.5);letter-spacing:10px;}
@@ -235,7 +239,7 @@
   <div class="keys" id="ctrlText"></div>
   <button id="startBtn" disabled>LOADING…</button>
   <button class="ghost" id="openSettings1">SETTINGS</button>
-  <p class="tiny">FOUR LEVELS · 3 ENTITIES PER FLOOR · RANDOM MAPS</p>
+  <p class="tiny">FIVE LEVELS · 3 ENTITIES PER FLOOR · RANDOM MAPS</p>
 </div>
 
 <div id="pauseScreen" class="screen hidden">
@@ -291,6 +295,8 @@
   <h2>⚙ ADMIN</h2>
   <p class="sub">RESTRICTED ACCESS GRANTED</p>
   <div class="settings-list">
+
+    <div class="admin-sec">— GAMEPLAY —</div>
     <div class="setting"><div class="setting-row"><label>God Mode</label><button class="toggle" id="aGod">OFF</button></div></div>
     <div class="setting"><div class="setting-row"><label>Infinite Stamina</label><button class="toggle" id="aStamina">OFF</button></div></div>
     <div class="setting"><div class="setting-row"><label>Freeze Enemies</label><button class="toggle" id="aFreeze">OFF</button></div></div>
@@ -304,6 +310,37 @@
       <div class="setting-row"><label>Enemy Speed</label><span class="val" id="vEnemyMul">1.00x</span></div>
       <input type="range" id="aEnemyMul" min="0" max="500" value="100">
     </div>
+
+    <div class="admin-sec">— ITEMS &amp; OBJECTIVES —</div>
+    <div class="setting">
+      <div class="setting-row"><label>Papers Needed to Escape</label><span class="val" id="vPapersNeed">7</span></div>
+      <input type="range" id="aPapersNeed" min="0" max="50" value="7">
+    </div>
+    <div class="setting">
+      <div class="setting-row"><label>Paper Items Spawned</label><span class="val" id="vSpawnPaper">12</span></div>
+      <input type="range" id="aSpawnPaper" min="0" max="60" value="12">
+    </div>
+    <div class="setting">
+      <div class="setting-row"><label>Golden Paper Items</label><span class="val" id="vSpawnGold">3</span></div>
+      <input type="range" id="aSpawnGold" min="0" max="30" value="3">
+    </div>
+    <div class="setting">
+      <div class="setting-row"><label>Almond Water Items</label><span class="val" id="vSpawnWater">8</span></div>
+      <input type="range" id="aSpawnWater" min="0" max="40" value="8">
+    </div>
+    <div class="setting">
+      <div class="setting-row"><label>Battery Items</label><span class="val" id="vSpawnBattery">6</span></div>
+      <input type="range" id="aSpawnBattery" min="0" max="40" value="6">
+    </div>
+
+    <div class="admin-sec">— ENTITIES —</div>
+    <div class="setting">
+      <div class="setting-row"><label>Entities per Floor</label><span class="val" id="vEnemyCount">3</span></div>
+      <input type="range" id="aEnemyCount" min="0" max="12" value="3">
+    </div>
+
+    <div class="admin-sec">— ACTIONS —</div>
+    <div class="setting"><div class="setting-row"><label>Rebuild Current Level</label><button class="toggle" id="aRebuild">GO</button></div></div>
     <div class="setting">
       <div class="setting-row"><label>Teleport to Level</label></div>
       <div class="seg" id="aTPLevels">
@@ -311,10 +348,11 @@
         <button data-v="2">2</button>
         <button data-v="3">3</button>
         <button data-v="4">4</button>
+        <button data-v="5">5</button>
       </div>
     </div>
     <div class="setting"><div class="setting-row"><label>Give All Papers</label><button class="toggle" id="aGivePapers">GO</button></div></div>
-    <div class="setting"><div class="setting-row"><label>Give Key (Level 3)</label><button class="toggle" id="aGiveKey">GO</button></div></div>
+    <div class="setting"><div class="setting-row"><label>Give Key (Home Level)</label><button class="toggle" id="aGiveKey">GO</button></div></div>
     <div class="setting"><div class="setting-row"><label>Teleport to Exit</label><button class="toggle" id="aTPExit">GO</button></div></div>
     <div class="setting"><div class="setting-row"><label>Teleport to Spawn</label><button class="toggle" id="aTPSpawn">GO</button></div></div>
     <div class="setting"><div class="setting-row"><label>Unlock Exit (Papers + Key)</label><button class="toggle" id="aUnlockAll">GO</button></div></div>
@@ -418,21 +456,29 @@ const THEMES = {
     panelChance: 0.32, flickerChance: 0.20, emergChance: 0.12,
     boxChance: 0.24, puddleChance: 0.20, enemySpeedMult: 1.0,
     exitColor: 0x2bff9a, exitLight: 0x3affa0, tagColor: '#e9dfae' },
-  2: { name: 'LEVEL 2 — THE GARDEN', kind: 'garden',
+  2: { name: 'LEVEL 2 — THE CARDBOARD ROOM', kind: 'cardboard',
+    fog: 0x2a1a0c, fogNear: 1.2, fogFar: 17,
+    ambient: 0xffb870, ambientI: 0.55, hemiSky: 0xd8a870, hemiGround: 0x1a1008, hemiI: 0.40,
+    panelColor: 0xffa055, flickerOn: [1.0, 0.72, 0.42], flickerOff: [0.35, 0.22, 0.12],
+    panelChance: 0.20, flickerChance: 0.45, emergChance: 0.03,
+    boxChance: 0.55, puddleChance: 0.05, enemySpeedMult: 1.05,
+    wallH: 4.6, tallWalls: true,
+    exitColor: 0xff8050, exitLight: 0xff8050, tagColor: '#e0b088' },
+  3: { name: 'LEVEL 3 — THE GARDEN', kind: 'garden',
     fog: 0xa8c8a0, fogNear: 5.0, fogFar: 42,
     ambient: 0xfff6d8, ambientI: 1.05, hemiSky: 0xdcf0c0, hemiGround: 0x4e7a42, hemiI: 0.95,
     panelColor: 0xfff8d8, flickerOn: [1.0, 1.0, 0.92], flickerOff: [0.7, 0.85, 0.6],
     panelChance: 0.30, flickerChance: 0.05, emergChance: 0.02,
     boxChance: 0.04, puddleChance: 0.26, enemySpeedMult: 1.10,
     exitColor: 0xffd84a, exitLight: 0xffd84a, tagColor: '#b8f0a0' },
-  3: { name: 'LEVEL 3 — THE HOME', kind: 'home',
+  4: { name: 'LEVEL 4 — THE HOME', kind: 'home',
     fog: 0x5a4630, fogNear: 3.2, fogFar: 36,
     ambient: 0xffd8a0, ambientI: 0.80, hemiSky: 0xffe0b0, hemiGround: 0x3a2818, hemiI: 0.65,
     panelColor: 0xffe8c0, flickerOn: [1.0, 0.9, 0.7], flickerOff: [0.28, 0.22, 0.14],
     panelChance: 0.30, flickerChance: 0.18, emergChance: 0.05,
     boxChance: 0.10, puddleChance: 0.10, enemySpeedMult: 1.05,
     exitColor: 0xffa040, exitLight: 0xffa040, tagColor: '#ffb878' },
-  4: { name: 'LEVEL 4 — THE SCHOOL', kind: 'school',
+  5: { name: 'LEVEL 5 — THE SCHOOL', kind: 'school',
     fog: 0x0a0b10, fogNear: 1.2, fogFar: 17,
     ambient: 0x9aa8c0, ambientI: 0.30, hemiSky: 0x7080a0, hemiGround: 0x080810, hemiI: 0.32,
     panelColor: 0xf0f8ff, flickerOn: [1.0, 1.0, 1.0], flickerOff: [0.02, 0.02, 0.05],
@@ -452,14 +498,24 @@ const WORLD_W = COLS * CELL, WORLD_D = ROWS * CELL;
 const HALF_COLS = (COLS - 1) / 2;
 const HALF_ROWS = (ROWS - 1) / 2;
 const DIRS4 = [[1,0],[-1,0],[0,1],[0,-1]];
-const PAPERS_NEEDED = 7;
-const ENEMY_COUNT = 3;
 const TWO_PI = Math.PI * 2;
 const CAMERA_FAR = 65;
 const EXIT_BEACON_TIME = 150;
-const MAX_LEVEL = 4;
+const MAX_LEVEL = 5;
 const FINAL_LEVEL_SPEED_MULT = 1.5;
-const HOME_LEVEL = 3;
+const HOME_LEVEL = 4;
+const CARDBOARD_LEVEL = 2;
+
+/* ---- ADMIN-EDITABLE GAMEPLAY VALUES ---- */
+let papersNeeded     = 7;
+let enemyCount       = 3;
+let spawnPaperCount  = 12;
+let spawnGoldCount   = 3;
+let spawnWaterCount  = 8;
+let spawnBatteryCount= 6;
+
+/* ---- LEVEL-DEPENDENT WALL HEIGHT ---- */
+let currentWallH = WALL_H;
 
 /* ============================================================
    4. DOM
@@ -760,6 +816,104 @@ function paintHomeCeil(ctx, s){
   }
 }
 
+/* ---------- CARDBOARD TEXTURES ---------- */
+function paintCardboardWall(ctx, s){
+  // Base brown cardboard
+  ctx.fillStyle = '#8a6335'; ctx.fillRect(0,0,s,s);
+  // Vertical corrugation lines
+  for (let x = 0; x < s; x += 7){
+    ctx.fillStyle = `rgba(50,30,10,${0.15+Math.random()*0.10})`;
+    ctx.fillRect(x, 0, 2, s);
+  }
+  // Random lighter streaks (wear)
+  for (let i = 0; i < s*s*0.10; i++){
+    const x = Math.random()*s, y = Math.random()*s;
+    ctx.fillStyle = `rgba(${170+Math.random()*50|0},${130+Math.random()*40|0},${80+Math.random()*30|0},${0.08+Math.random()*0.12})`;
+    ctx.fillRect(x, y, 2 + Math.random()*4, 1);
+  }
+  // Tape strips
+  for (let i = 0; i < 5; i++){
+    const x = Math.random()*s, y = Math.random()*s;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate((Math.random()-0.5)*0.5);
+    ctx.fillStyle = `rgba(220,205,165,${0.35+Math.random()*0.25})`;
+    ctx.fillRect(-40, -5, 80, 10);
+    ctx.strokeStyle = `rgba(140,120,80,0.5)`;
+    ctx.strokeRect(-40, -5, 80, 10);
+    ctx.restore();
+  }
+  // Creases & tears
+  for (let i = 0; i < 8; i++){
+    const x = Math.random()*s, y = Math.random()*s;
+    ctx.strokeStyle = 'rgba(30,18,8,0.45)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x + (Math.random()-0.5)*70, y + (Math.random()-0.5)*70);
+    ctx.stroke();
+  }
+  // Dark crease blotches
+  for (let i = 0; i < 4; i++){
+    const x = Math.random()*s, y = Math.random()*s, r = 20+Math.random()*40;
+    const g = ctx.createRadialGradient(x,y,0,x,y,r);
+    g.addColorStop(0, `rgba(60,35,15,${0.20+Math.random()*0.15})`);
+    g.addColorStop(1, 'rgba(60,35,15,0)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x,y,r,0,7); ctx.fill();
+  }
+}
+function paintCardboardFloor(ctx, s){
+  ctx.fillStyle = '#6a4820'; ctx.fillRect(0,0,s,s);
+  // Horizontal seam lines every ~12px
+  for (let y = 0; y < s; y += 14){
+    ctx.fillStyle = `rgba(30,16,6,0.35)`;
+    ctx.fillRect(0, y, s, 1);
+  }
+  // Speckles of dirt
+  for (let i = 0; i < s*s*0.35; i++){
+    const v = Math.random();
+    ctx.fillStyle = v > 0.5
+      ? `rgba(50,30,15,${0.15+Math.random()*0.20})`
+      : `rgba(120,90,50,${0.10+Math.random()*0.15})`;
+    ctx.fillRect(Math.random()*s, Math.random()*s, 2, 2);
+  }
+  // Tape strips on floor
+  for (let i = 0; i < 6; i++){
+    const x = Math.random()*s, y = Math.random()*s;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate((Math.random()-0.5)*0.8);
+    ctx.fillStyle = `rgba(200,180,140,${0.35+Math.random()*0.25})`;
+    ctx.fillRect(-30, -4, 60, 8);
+    ctx.restore();
+  }
+  // Dark creases/blotches
+  for (let i = 0; i < 6; i++){
+    const x = Math.random()*s, y = Math.random()*s, r = 15+Math.random()*35;
+    const g = ctx.createRadialGradient(x,y,0,x,y,r);
+    g.addColorStop(0,'rgba(30,15,5,0.25)'); g.addColorStop(1,'rgba(30,15,5,0)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x,y,r,0,7); ctx.fill();
+  }
+}
+function paintCardboardCeil(ctx, s){
+  ctx.fillStyle = '#4a3218'; ctx.fillRect(0,0,s,s);
+  // Vertical corrugation
+  for (let x = 0; x < s; x += 9){
+    ctx.fillStyle = `rgba(20,10,4,${0.25+Math.random()*0.15})`;
+    ctx.fillRect(x, 0, 3, s);
+  }
+  for (let i = 0; i < s*s*0.20; i++){
+    ctx.fillStyle = `rgba(${80+Math.random()*40|0},${55+Math.random()*30|0},${25+Math.random()*20|0},${0.15+Math.random()*0.15})`;
+    ctx.fillRect(Math.random()*s, Math.random()*s, 2, 2);
+  }
+  for (let i = 0; i < 5; i++){
+    const x = Math.random()*s, y = Math.random()*s, r = 20+Math.random()*40;
+    const g = ctx.createRadialGradient(x,y,0,x,y,r);
+    g.addColorStop(0,'rgba(15,8,2,0.45)'); g.addColorStop(1,'rgba(15,8,2,0)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x,y,r,0,7); ctx.fill();
+  }
+}
+
 const getBackWallTex    = () => tex('bw',  () => makeTexture(128, paintWall, 2, 2));
 const getBackCarpetTex  = () => tex('bc',  () => makeTexture(128, paintCarpet, COLS, ROWS));
 const getBackCeilTex    = () => tex('bcl', () => makeTexture(128, paintCeiling, COLS, ROWS));
@@ -773,6 +927,10 @@ const getSchoolCeilTex  = () => tex('sc',  () => makeTexture(192, paintSchoolCei
 const getHomeWallTex    = () => tex('hw',  () => makeTexture(192, paintHomeWall, 2, 2));
 const getHomeFloorTex   = () => tex('hf',  () => makeTexture(192, paintHomeFloor, COLS, ROWS));
 const getHomeCeilTex    = () => tex('hc',  () => makeTexture(192, paintHomeCeil, COLS, ROWS));
+/* Cardboard level textures */
+const getCardboardWallTex  = () => tex('cbw', () => makeTexture(192, paintCardboardWall, 2, 2));
+const getCardboardFloorTex = () => tex('cbf', () => makeTexture(192, paintCardboardFloor, COLS, ROWS));
+const getCardboardCeilTex  = () => tex('cbc', () => makeTexture(192, paintCardboardCeil, COLS, ROWS));
 
 /* ============================================================
    6. STATE
@@ -796,7 +954,7 @@ let levelElapsed = 0;
 let exitBeaconActive = false;
 let _lastBeaconHintAt = -999;
 
-/* KEY STATE (home level only) */
+/* KEY STATE */
 let keyObject = null;
 let keyCollected = false;
 let _prevExitUnlocked = false;
@@ -909,12 +1067,68 @@ const SPECIAL_TYPES = [
   'dining', 'nursery', 'laundry', 'hallway', 'attic', 'basement'
 ];
 
-function generateMaze(levelNum){
+/* ---------- CARDBOARD-SPECIFIC MAZE GENERATOR ----------
+   Recursive-backtracker maze on odd-indexed cells. Produces
+   1-cell-wide corridors everywhere, then sprinkles a few tiny
+   2x2 / 3x3 chambers for breathing room. Very tight. */
+function generateCardboardMaze(){
+  const g = Array.from({length: ROWS}, () => new Array(COLS).fill(1));
+  // Random walk (recursive backtracker) over odd-index cells
+  const stack = [[1, 1]];
+  g[1][1] = 0;
+  while (stack.length){
+    const top = stack[stack.length - 1];
+    const ci = top[0], cj = top[1];
+    // Gather unvisited neighbours at distance 2
+    const neighbours = [];
+    for (let d = 0; d < 4; d++){
+      const ni = ci + DIRS4[d][0]*2;
+      const nj = cj + DIRS4[d][1]*2;
+      if (ni >= 1 && ni < COLS-1 && nj >= 1 && nj < ROWS-1 && g[nj][ni] === 1){
+        neighbours.push([ni, nj, d]);
+      }
+    }
+    if (!neighbours.length){
+      stack.pop();
+      continue;
+    }
+    const [ni, nj, d] = neighbours[(Math.random()*neighbours.length)|0];
+    // Carve the two cells between
+    g[cj + DIRS4[d][1]][ci + DIRS4[d][0]] = 0;
+    g[nj][ni] = 0;
+    stack.push([ni, nj]);
+  }
+  // Carve a handful of small chambers for breathing room
+  const rooms = [];
+  const numRooms = 14 + ((Math.random()*8)|0);
+  for (let r = 0; r < numRooms; r++){
+    const w = (Math.random() < 0.7 ? 2 : 3);
+    const h = (Math.random() < 0.7 ? 2 : 3);
+    if (w >= COLS - 4 || h >= ROWS - 4) continue;
+    const x = 2 + ((Math.random() * (COLS - w - 4))|0);
+    const y = 2 + ((Math.random() * (ROWS - h - 4))|0);
+    let ok = true;
+    for (let rr = 0; rr < rooms.length; rr++){
+      const o = rooms[rr];
+      if (!(x + w + 1 <= o.x || o.x + o.w + 1 <= x ||
+            y + h + 1 <= o.y || o.y + o.h + 1 <= y)){ ok = false; break; }
+    }
+    if (!ok) continue;
+    for (let j = y; j < y + h; j++)
+      for (let i = x; i < x + w; i++) g[j][i] = 0;
+    rooms.push({ x, y, w, h, type: null, cx: x+(w/2|0), cy: y+(h/2|0) });
+  }
+  currentRooms = rooms;
+  return g;
+}
+
+/* ---------- STANDARD MAZE GENERATOR (rooms + corridors) ---------- */
+function generateStandardMaze(levelNum){
   const g = Array.from({length: ROWS}, () => new Array(COLS).fill(1));
   const rooms = [];
 
   const isSchool = levelNum === MAX_LEVEL;
-  const isGarden = levelNum === 2;
+  const isGarden = levelNum === 3;
   const isHome = levelNum === HOME_LEVEL;
   const targetRooms = isSchool ? 95 : (isHome ? 100 : (isGarden ? 85 : 90));
 
@@ -1022,7 +1236,10 @@ function generateMaze(levelNum){
   return g;
 }
 
-function generateMazeForLevel(levelNum){ return generateMaze(levelNum); }
+function generateMazeForLevel(levelNum){
+  if (levelNum === CARDBOARD_LEVEL) return generateCardboardMaze();
+  return generateStandardMaze(levelNum);
+}
 
 /* ============================================================
    8. WORLD HELPERS
@@ -1225,18 +1442,36 @@ function buildEnemyMesh(){
   return { group, bodyMat, eyeMat, glowMat };
 }
 
-for (let i = 0; i < ENEMY_COUNT; i++){
-  const parts = buildEnemyMesh();
-  enemies.push({
-    pos: new THREE.Vector3(), next: null,
-    pathTimer: Math.random() * 0.6, wanderTarget: null,
-    group: parts.group, bodyMat: parts.bodyMat, eyeMat: parts.eyeMat, glowMat: parts.glowMat,
-    chasing: false, wasChasing: false, phase: Math.random() * TWO_PI,
-  });
+function ensureEnemyCount(n){
+  n = Math.max(0, n | 0);
+  while (enemies.length > n){
+    const e = enemies.pop();
+    scene.remove(e.group);
+    try {
+      e.group.traverse(child => {
+        if (child.geometry) child.geometry.dispose?.();
+        if (child.material){
+          const mats = Array.isArray(child.material) ? child.material : [child.material];
+          for (const m of mats) if (m && m.dispose) m.dispose();
+        }
+      });
+    } catch (err){}
+  }
+  while (enemies.length < n){
+    const parts = buildEnemyMesh();
+    enemies.push({
+      pos: new THREE.Vector3(), next: null,
+      pathTimer: Math.random() * 0.6, wanderTarget: null,
+      group: parts.group, bodyMat: parts.bodyMat, eyeMat: parts.eyeMat, glowMat: parts.glowMat,
+      chasing: false, wasChasing: false, phase: Math.random() * TWO_PI,
+    });
+  }
 }
+ensureEnemyCount(enemyCount);
 
 function configureEnemyForLevel(levelNum){
   const isFinal = (levelNum === MAX_LEVEL);
+  const isCardboard = (levelNum === CARDBOARD_LEVEL);
   for (const e of enemies){
     if (isFinal){
       e.bodyMat.color.setHex(0xf6f6fa);
@@ -1245,6 +1480,13 @@ function configureEnemyForLevel(levelNum){
       e.group.scale.set(1.15, 1.32, 1.15);
       e.glowMat.color.setHex(0xd0d8ff);
       e.glowMat.opacity = 0.55;
+    } else if (isCardboard){
+      // Cardboard stalkers — muted brown figures that blend with the walls
+      e.bodyMat.color.setHex(0x2a1c0c);
+      e.bodyMat.emissive.setHex(0x1a0e04);
+      e.eyeMat.color.setHex(0xff6020);
+      e.group.scale.set(1, 1, 1);
+      e.glowMat.opacity = 0;
     } else {
       e.bodyMat.color.setHex(0x121109);
       e.bodyMat.emissive.setHex(0x000000);
@@ -1327,18 +1569,21 @@ function floorMapFor(theme){
   if (theme.kind === 'garden') return getGrassTex();
   if (theme.kind === 'school') return getSchoolFloorTex();
   if (theme.kind === 'home') return getHomeFloorTex();
+  if (theme.kind === 'cardboard') return getCardboardFloorTex();
   return getBackCarpetTex();
 }
 function ceilMapFor(theme){
   if (theme.kind === 'garden') return getSkyTex();
   if (theme.kind === 'school') return getSchoolCeilTex();
   if (theme.kind === 'home') return getHomeCeilTex();
+  if (theme.kind === 'cardboard') return getCardboardCeilTex();
   return getBackCeilTex();
 }
 function wallMapFor(theme){
   if (theme.kind === 'garden') return getHedgeTex();
   if (theme.kind === 'school') return getSchoolWallTex();
   if (theme.kind === 'home') return getHomeWallTex();
+  if (theme.kind === 'cardboard') return getCardboardWallTex();
   return getBackWallTex();
 }
 
@@ -1352,7 +1597,7 @@ function buildCeiling(theme){
   const mat = new THREE.MeshLambertMaterial({ map: ceilMapFor(theme) });
   const m = new THREE.Mesh(new THREE.PlaneGeometry(WORLD_W, WORLD_D), mat);
   m.rotation.x = Math.PI/2;
-  m.position.y = WALL_H;
+  m.position.y = currentWallH;
   addLevelObj(m);
 }
 function buildWalls(theme){
@@ -1361,7 +1606,7 @@ function buildWalls(theme){
     for (let i = 0; i < COLS; i++) if (grid[j][i] === 1) wallCount++;
   if (!wallCount) return;
   const map = wallMapFor(theme);
-  const geo = new THREE.BoxGeometry(CELL, WALL_H, CELL);
+  const geo = new THREE.BoxGeometry(CELL, currentWallH, CELL);
   const mat = new THREE.MeshLambertMaterial({ map });
   const walls = new THREE.InstancedMesh(geo, mat, wallCount);
   walls.frustumCulled = false;
@@ -1371,13 +1616,14 @@ function buildWalls(theme){
   for (let j = 0; j < ROWS; j++){
     for (let i = 0; i < COLS; i++){
       if (grid[j][i] !== 1) continue;
-      dummy.position.set((i-HALF_COLS)*CELL, WALL_H/2, (j-HALF_ROWS)*CELL);
+      dummy.position.set((i-HALF_COLS)*CELL, currentWallH/2, (j-HALF_ROWS)*CELL);
       dummy.rotation.set(0,0,0); dummy.scale.set(1,1,1); dummy.updateMatrix();
       walls.setMatrixAt(wi, dummy.matrix);
       const v = 0.82 + Math.random()*0.24;
       if (theme.kind === 'garden') col.setRGB(v, v*0.98, v*0.92);
       else if (theme.kind === 'school') col.setRGB(v*0.94, v*0.96, v);
       else if (theme.kind === 'home') col.setRGB(v, v*0.94, v*0.84);
+      else if (theme.kind === 'cardboard') col.setRGB(v*0.92, v*0.78, v*0.55);
       else col.setRGB(v, v*0.99, v*0.92);
       walls.setColorAt(wi, col);
       wi++;
@@ -1406,7 +1652,7 @@ function buildPanels(theme){
     im.frustumCulled = false;
     for (let k = 0; k < positions.length; k++){
       const p = positions[k];
-      dummy.position.set(p.x, WALL_H-0.03, p.z);
+      dummy.position.set(p.x, currentWallH - 0.03, p.z);
       dummy.rotation.set(0, Math.random() < 0.5 ? 0 : Math.PI/2, 0);
       dummy.scale.set(1,1,1); dummy.updateMatrix();
       im.setMatrixAt(k, dummy.matrix);
@@ -2118,6 +2364,143 @@ function buildBackroomsProps(theme, open){
   }
 }
 
+/* ---------- CARDBOARD LEVEL PROPS ----------
+   Tight corridors: fewer props per cell so we don't block movement.
+   Hanging flaps, cardboard boxes, warm dim bulbs, floor tape. */
+function buildCardboardProps(theme, open){
+  const dummy = new THREE.Object3D();
+  const boxTex = getCardboardTex();
+  const wallTex = getCardboardWallTex();
+
+  // Box stacks — but keep them hugging the walls so corridors stay walkable
+  const boxCells = [];
+  for (let j = 1; j < ROWS-1; j++){
+    for (let i = 1; i < COLS-1; i++){
+      if (grid[j][i] !== 0) continue;
+      let adjWall = 0;
+      for (let d = 0; d < 4; d++) if (grid[j+DIRS4[d][1]][i+DIRS4[d][0]] === 1) adjWall++;
+      if (adjWall >= 1 && Math.random() < 0.30) boxCells.push({i,j});
+    }
+  }
+  const boxCount = Math.min(140, boxCells.length);
+  if (boxCount){
+    const geo = new THREE.BoxGeometry(0.85, 0.85, 0.85);
+    const mat = new THREE.MeshLambertMaterial({ map: boxTex });
+    const im = new THREE.InstancedMesh(geo, mat, boxCount);
+    im.frustumCulled = false;
+    for (let k = 0; k < boxCount; k++){
+      const c = boxCells[k];
+      const p = cellToWorld(c.i, c.j);
+      const s = 0.55 + Math.random()*0.65;
+      const stack = Math.random() < 0.30 ? 2 : 1;
+      // Hug the wall so we leave a path
+      let wdx = 0, wdz = 0;
+      for (let d = 0; d < 4; d++){
+        const di = DIRS4[d][0], dj = DIRS4[d][1];
+        if (grid[c.j+dj][c.i+di] === 1){ wdx = di; wdz = dj; break; }
+      }
+      const offX = wdx * (CELL * 0.35) + (Math.random()-0.5)*0.8;
+      const offZ = wdz * (CELL * 0.35) + (Math.random()-0.5)*0.8;
+      for (let st = 0; st < stack; st++){
+        const idx = k * 2 + st;
+        if (idx >= boxCount) break;
+        dummy.position.set(p.x + offX, (0.85*s)/2 + st*0.85*s, p.z + offZ);
+        dummy.rotation.set(0, Math.random()*TWO_PI, 0);
+        dummy.scale.set(s, s, s);
+        dummy.updateMatrix(); im.setMatrixAt(k, dummy.matrix);
+        break; // only render one per cell to keep it clean
+      }
+    }
+    im.instanceMatrix.needsUpdate = true;
+    addLevelObj(im);
+  }
+
+  // Hanging cardboard flaps from the tall ceiling
+  const flapCount = Math.min(60, Math.floor(open.length * 0.18));
+  if (flapCount){
+    const geo = new THREE.PlaneGeometry(2.6, 1.8);
+    const mat = new THREE.MeshLambertMaterial({ map: wallTex, side: THREE.DoubleSide });
+    const im = new THREE.InstancedMesh(geo, mat, flapCount);
+    im.frustumCulled = false;
+    for (let k = 0; k < flapCount; k++){
+      const c = open[(k*13) % open.length];
+      const p = cellToWorld(c.i, c.j);
+      dummy.position.set(p.x, currentWallH - 1.05, p.z);
+      dummy.rotation.set((Math.random()-0.5)*0.35, Math.random()*TWO_PI, (Math.random()-0.5)*0.35);
+      dummy.scale.set(1, 1, 1);
+      dummy.updateMatrix(); im.setMatrixAt(k, dummy.matrix);
+    }
+    im.instanceMatrix.needsUpdate = true;
+    addLevelObj(im);
+  }
+
+  // Warm hanging bulbs (dim, sparse)
+  const bulbCells = [];
+  for (let j = 1; j < ROWS-1; j++){
+    for (let i = 1; i < COLS-1; i++){
+      if (grid[j][i] === 0 && Math.random() < 0.05) bulbCells.push({i,j});
+    }
+  }
+  if (bulbCells.length){
+    const bulbGeo = new THREE.SphereGeometry(0.14, 8, 6);
+    const bulbMat = new THREE.MeshBasicMaterial({ color: 0xffaa55 });
+    const cordGeo = new THREE.CylinderGeometry(0.018, 0.018, 0.85, 4);
+    const cordMat = new THREE.MeshBasicMaterial({ color: 0x2a1c10 });
+    const bulbIM = new THREE.InstancedMesh(bulbGeo, bulbMat, bulbCells.length);
+    const cordIM = new THREE.InstancedMesh(cordGeo, cordMat, bulbCells.length);
+    bulbIM.frustumCulled = false; cordIM.frustumCulled = false;
+    for (let k = 0; k < bulbCells.length; k++){
+      const p = cellToWorld(bulbCells[k].i, bulbCells[k].j);
+      dummy.position.set(p.x, currentWallH - 1.05, p.z);
+      dummy.rotation.set(0,0,0); dummy.scale.set(1,1,1);
+      dummy.updateMatrix(); bulbIM.setMatrixAt(k, dummy.matrix);
+      dummy.position.set(p.x, currentWallH - 0.62, p.z);
+      dummy.updateMatrix(); cordIM.setMatrixAt(k, dummy.matrix);
+    }
+    bulbIM.instanceMatrix.needsUpdate = true;
+    cordIM.instanceMatrix.needsUpdate = true;
+    addLevelObj(bulbIM); addLevelObj(cordIM);
+  }
+
+  // Floor tape strips
+  const tapeCount = Math.min(70, Math.floor(open.length * 0.20));
+  if (tapeCount){
+    const geo = new THREE.PlaneGeometry(1.7, 0.28);
+    geo.rotateX(-Math.PI/2);
+    const mat = new THREE.MeshBasicMaterial({ color: 0xd8c890, transparent: true, opacity: 0.62, depthWrite: false });
+    const im = new THREE.InstancedMesh(geo, mat, tapeCount);
+    im.frustumCulled = false;
+    for (let k = 0; k < tapeCount; k++){
+      const c = open[(k*3) % open.length];
+      const p = cellToWorld(c.i, c.j);
+      dummy.position.set(p.x + (Math.random()-0.5)*2.5, 0.02, p.z + (Math.random()-0.5)*2.5);
+      dummy.rotation.set(0, Math.random()*TWO_PI, 0);
+      dummy.scale.set(0.7 + Math.random()*0.9, 1, 1);
+      dummy.updateMatrix(); im.setMatrixAt(k, dummy.matrix);
+    }
+    im.instanceMatrix.needsUpdate = true; addLevelObj(im);
+  }
+
+  // Scattered scraps of cardboard on the floor
+  const scrapCount = Math.min(50, Math.floor(open.length * 0.15));
+  if (scrapCount){
+    const geo = new THREE.PlaneGeometry(0.55, 0.55);
+    geo.rotateX(-Math.PI/2);
+    const mat = new THREE.MeshLambertMaterial({ map: boxTex });
+    const im = new THREE.InstancedMesh(geo, mat, scrapCount);
+    im.frustumCulled = false;
+    for (let k = 0; k < scrapCount; k++){
+      const c = open[(k*7) % open.length];
+      const p = cellToWorld(c.i, c.j);
+      dummy.position.set(p.x + (Math.random()-0.5)*3.2, 0.012, p.z + (Math.random()-0.5)*3.2);
+      dummy.rotation.set(0, Math.random()*TWO_PI, 0);
+      const s = 0.6 + Math.random()*0.8; dummy.scale.set(s, 1, s);
+      dummy.updateMatrix(); im.setMatrixAt(k, dummy.matrix);
+    }
+    im.instanceMatrix.needsUpdate = true; addLevelObj(im);
+  }
+}
+
 function buildGardenProps(theme, open){
   const dummy = new THREE.Object3D();
   const waterCount = Math.min(45, Math.floor(open.length * theme.puddleChance));
@@ -2293,6 +2676,20 @@ const NOTES_L1 = [
   "I found a bathroom that shouldn't be here. The tub was full.",
   "Some rooms remember being somewhere else.",
 ];
+const NOTES_CARDBOARD = [
+  "THE CARDBOARD ROOM — The walls are made of boxes. The boxes are made of something older.",
+  "I crawled in. I thought it would end. It just gets tighter.",
+  "Every step sounds like someone else's step behind you.",
+  "The flaps breathe. I put my hand through one and it was warm.",
+  "Someone taped the seams shut from the inside.",
+  "I counted the corners. Four. Then five. Then three.",
+  "The corridors are exactly one person wide. I don't know how they built it.",
+  "A box in here still had a shipping label. The address was my home.",
+  "I heard scissors cutting somewhere ahead. I did not go that way.",
+  "The ceiling is higher than it should be. There is no ceiling.",
+  "The bulbs sway when nothing touches them.",
+  "The tape sticks to me when I walk. It is warm.",
+];
 const NOTES_L2 = [
   "THE GARDEN — The hedges moved when I wasn't looking.",
   "The fountains are warm. Not hot. Warm, like breath.",
@@ -2351,7 +2748,10 @@ function buildCollectibles(openCells){
     const r = Math.floor(Math.random()*(k+1));
     const t = shuffled[k]; shuffled[k] = shuffled[r]; shuffled[r] = t;
   }
-  const paperCount = 12, goldCount = 3, waterCount = 8, batteryCount = 6;
+  const paperCount   = spawnPaperCount;
+  const goldCount    = spawnGoldCount;
+  const waterCount   = spawnWaterCount;
+  const batteryCount = spawnBatteryCount;
   let idx = 0;
   const nextCell = () => {
     if (idx >= shuffled.length) return shuffled[(Math.random()*shuffled.length)|0];
@@ -2399,6 +2799,7 @@ function buildExit(theme){
 }
 
 function spawnEnemies(){
+  ensureEnemyCount(enemyCount);
   const isFinalLevel = (currentLevel === MAX_LEVEL);
   const candidates = [];
   for (let j = 1; j < ROWS-1; j++){
@@ -2449,8 +2850,8 @@ function spawnEnemies(){
 }
 
 function updatePaperCounter(bump){
-  paperCounterEl.textContent = `PAPERS ${papersCollected}/${PAPERS_NEEDED}`;
-  paperCounterEl.classList.toggle('ready', papersCollected >= PAPERS_NEEDED);
+  paperCounterEl.textContent = `PAPERS ${papersCollected}/${papersNeeded}`;
+  paperCounterEl.classList.toggle('ready', papersCollected >= papersNeeded);
   if (bump){
     paperCounterEl.classList.remove('bump');
     void paperCounterEl.offsetWidth;
@@ -2463,6 +2864,7 @@ function buildLevel(levelNum){
   currentLevel = levelNum;
   const theme = THEMES[levelNum] || THEMES[1];
   currentTheme = theme;
+  currentWallH = theme.wallH || WALL_H;
 
   papersCollected = 0;
   exitDenyCooldown = false;
@@ -2485,11 +2887,13 @@ function buildLevel(levelNum){
 
   if (theme.kind === 'school') playerLight.color.setHex(0xb8c4e0);
   else if (theme.kind === 'home') playerLight.color.setHex(0xffb070);
+  else if (theme.kind === 'cardboard') playerLight.color.setHex(0xffa050);
   else playerLight.color.setHex(0xffeaa0);
-  playerLight.intensity = theme.kind === 'school' ? 0.32 : (theme.kind === 'home' ? 0.60 : 0.55);
+  playerLight.intensity = theme.kind === 'school' ? 0.32 : (theme.kind === 'home' ? 0.60 : (theme.kind === 'cardboard' ? 0.72 : 0.55));
 
   if (theme.kind === 'school') flashlight.color.setHex(0xdfe8ff);
   else if (theme.kind === 'home') flashlight.color.setHex(0xffd8a0);
+  else if (theme.kind === 'cardboard') flashlight.color.setHex(0xffc880);
   else flashlight.color.setHex(0xfff2c0);
 
   grid = generateMazeForLevel(levelNum);
@@ -2528,6 +2932,7 @@ function buildLevel(levelNum){
   if (theme.kind === 'garden') buildGardenProps(theme, open);
   else if (theme.kind === 'school') buildSchoolProps(theme, open);
   else if (theme.kind === 'home') buildHomeProps(theme, open);
+  else if (theme.kind === 'cardboard') buildCardboardProps(theme, open);
   else buildBackroomsProps(theme, open);
 
   buildSpecialRoomProps();
@@ -2830,6 +3235,58 @@ function playFootstep(hard){
     f.Q.value = 1.2;
     const g = actx.createGain();
     g.gain.value = hard ? 0.085 : 0.045;
+    src.connect(f); f.connect(g); g.connect(sfxGain);
+    src.start(t);
+  } catch (err) {}
+}
+/* ---------- CARDBOARD FOOTSTEP (crunchy rustle) ---------- */
+function playCardboardStep(hard){
+  if (!actx) return;
+  try {
+    const t = actx.currentTime;
+    const len = Math.floor(actx.sampleRate * (hard ? 0.13 : 0.09));
+    const buf = actx.createBuffer(1, len, actx.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < len; i++){
+      // Crunchier envelope — a sharp attack with decaying crackles
+      const norm = i / len;
+      const env = Math.pow(1 - norm, 1.8);
+      const crackle = (Math.random() > 0.85) ? 1.6 : 1.0;
+      d[i] = (Math.random()*2-1) * env * crackle;
+    }
+    const src = actx.createBufferSource(); src.buffer = buf;
+    const f = actx.createBiquadFilter();
+    f.type = 'bandpass';
+    f.frequency.value = 1200 + Math.random()*500;
+    f.Q.value = 1.1;
+    const g = actx.createGain();
+    g.gain.value = hard ? 0.11 : 0.075;
+    src.connect(f); f.connect(g); g.connect(sfxGain);
+    src.start(t);
+  } catch (err) {}
+}
+/* ---------- CARDBOARD AMBIENT RUSTLE ---------- */
+function playCardboardRustle(){
+  if (!actx) return;
+  try {
+    const t = actx.currentTime;
+    const len = Math.floor(actx.sampleRate * (0.35 + Math.random()*0.5));
+    const buf = actx.createBuffer(1, len, actx.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < len; i++){
+      const norm = i / len;
+      // Slow swells in the noise so it sounds like shifting cardboard
+      const env = Math.sin(norm * Math.PI);
+      const mod = 0.6 + 0.4 * Math.sin(norm * 22 + Math.random());
+      d[i] = (Math.random()*2-1) * env * mod;
+    }
+    const src = actx.createBufferSource(); src.buffer = buf;
+    const f = actx.createBiquadFilter();
+    f.type = 'bandpass';
+    f.frequency.value = 700 + Math.random()*500;
+    f.Q.value = 0.9;
+    const g = actx.createGain();
+    g.gain.value = 0.045;
     src.connect(f); f.connect(g); g.connect(sfxGain);
     src.start(t);
   } catch (err) {}
@@ -3140,7 +3597,7 @@ function startGame(){
   endScreen.classList.add('hidden');
   damageVig.style.opacity = 0;
   setState('playing');
-  showHint(`Find ${PAPERS_NEEDED} papers, then reach the green light. Three of them are awake.`, 5600);
+  showHint(`Find ${papersNeeded} papers, then reach the green light. ${enemyCount === 1 ? 'One of them is awake.' : (enemyCount + ' of them are awake.')}`, 5600);
   if (!isTouch){ const p = renderer.domElement.requestPointerLock?.(); if (p && p.catch) p.catch(() => {}); }
 }
 
@@ -3163,7 +3620,7 @@ function returnToMenu(){
 }
 
 function gameOver(){
-  if (ADMIN.god) return;   // ADMIN: god mode prevents death
+  if (ADMIN.god) return;
   if (state === 'over') return;
   setState('over');
   playScareSound();
@@ -3175,7 +3632,7 @@ function gameOver(){
     endScreen.classList.add('lose');
     endScreen.classList.remove('win');
     endTitle.textContent = 'IT FOUND YOU';
-    endMsg.textContent = `LEVEL ${currentLevel} · PAPERS ${papersCollected}/${PAPERS_NEEDED} · SCORE ${player.score} · TIME ${formatTime(elapsed)}`;
+    endMsg.textContent = `LEVEL ${currentLevel} · PAPERS ${papersCollected}/${papersNeeded} · SCORE ${player.score} · TIME ${formatTime(elapsed)}`;
     againBtn.textContent = 'TRY AGAIN';
   }, 750);
 }
@@ -3213,10 +3670,15 @@ function onReachExit(){
       nextLevelBtn.textContent = 'ENTER THE SCHOOL';
     } else {
       levelScreen.classList.remove('final');
+      // Transitions between levels — new ordering
       if (currentLevel === 1){
-        levelMsg.textContent = 'You found the exit. Something greener waits below.';
-      } else if (currentLevel === 2){
+        levelMsg.textContent = 'You found the exit. Something tighter waits below.';
+      } else if (currentLevel === CARDBOARD_LEVEL){
+        levelMsg.textContent = 'You pushed through the last flap. Something greener waits below.';
+      } else if (currentLevel === 3){
         levelMsg.textContent = 'You found the exit. A house waits below. The lights are still on.';
+      } else if (currentLevel === HOME_LEVEL){
+        levelMsg.textContent = 'You found the exit.';
       } else {
         levelMsg.textContent = 'You found the exit.';
       }
@@ -3238,10 +3700,11 @@ function goToNextLevel(){
   transitionLock = false;
   setState('playing');
   let hint;
-  if (next === 2) hint = `Find ${PAPERS_NEEDED} papers, then reach the golden gate. Three of them wander here.`;
-  else if (next === HOME_LEVEL) hint = `Find ${PAPERS_NEEDED} papers AND THE KEY, then reach the amber light.`;
-  else if (next === MAX_LEVEL) hint = `Find ${PAPERS_NEEDED} papers. DO NOT RUN. THEY CAN HEAR RUNNING. Your legs never tire here.`;
-  else hint = `Find ${PAPERS_NEEDED} papers.`;
+  if (next === CARDBOARD_LEVEL) hint = `Find ${papersNeeded} papers. The corridors are one person wide. Do not get stuck.`;
+  else if (next === 3) hint = `Find ${papersNeeded} papers, then reach the golden gate. ${enemyCount} of them wander here.`;
+  else if (next === HOME_LEVEL) hint = `Find ${papersNeeded} papers AND THE KEY, then reach the amber light.`;
+  else if (next === MAX_LEVEL) hint = `Find ${papersNeeded} papers. DO NOT RUN. THEY CAN HEAR RUNNING. Your legs never tire here.`;
+  else hint = `Find ${papersNeeded} papers.`;
   showHint(hint, 6400);
   if (!isTouch){ const p = renderer.domElement.requestPointerLock?.(); if (p && p.catch) p.catch(() => {}); }
 }
@@ -3286,7 +3749,6 @@ function updatePlayer(dt){
     }
   }
 
-  // ADMIN: apply player speed multiplier
   baseSpeed *= ADMIN.speedMul;
 
   staminaFill.style.width = (player.stamina / player.maxStamina * 100) + '%';
@@ -3297,7 +3759,8 @@ function updatePlayer(dt){
     player.footstepPhase += dt * stepRate;
     if (player.footstepPhase >= 1){
       player.footstepPhase -= 1;
-      playFootstep(player.sprinting);
+      if (currentLevel === CARDBOARD_LEVEL) playCardboardStep(player.sprinting);
+      else playFootstep(player.sprinting);
     }
   } else {
     player.footstepPhase = 0;
@@ -3347,17 +3810,18 @@ function updatePlayer(dt){
         playPickupChime(); player.score += 25; papersCollected++;
         updatePaperCounter(true);
         const needsKey = (currentLevel === HOME_LEVEL);
-        if (papersCollected >= PAPERS_NEEDED && (!needsKey || keyCollected)){
+        if (papersCollected >= papersNeeded && (!needsKey || keyCollected)){
           if (!_prevExitUnlocked){
             _prevExitUnlocked = true;
             if (needsKey){ playUnlock(); showHint("THE KEY TURNS. THE EXIT IS OPEN. RUN.", 3800); }
-            else { playPaperReadySound(); showHint(`You have ${PAPERS_NEEDED} papers. The exit is open. RUN.`, 3600); }
+            else { playPaperReadySound(); showHint(`You have ${papersNeeded} papers. The exit is open. RUN.`, 3600); }
           }
-        } else if (papersCollected === PAPERS_NEEDED && needsKey && !keyCollected){
+        } else if (papersCollected === papersNeeded && needsKey && !keyCollected){
           showHint("PAPERS COMPLETE. NOW FIND THE KEY.", 3200);
         }
         let pool = NOTES_L1;
-        if (currentTheme.kind === 'garden') pool = NOTES_L2;
+        if (currentTheme.kind === 'cardboard') pool = NOTES_CARDBOARD;
+        else if (currentTheme.kind === 'garden') pool = NOTES_L2;
         else if (currentTheme.kind === 'home') pool = NOTES_HOME;
         else if (currentTheme.kind === 'school') pool = NOTES_SCHOOL;
         showLore(pool[(Math.random()*pool.length)|0], 4200);
@@ -3370,10 +3834,10 @@ function updatePlayer(dt){
         updatePaperCounter(true);
         showHint("GOLDEN PAPER — worth 3 papers!", 2400);
         const needsKey = (currentLevel === HOME_LEVEL);
-        if (papersCollected >= PAPERS_NEEDED && (!needsKey || keyCollected) && !_prevExitUnlocked){
+        if (papersCollected >= papersNeeded && (!needsKey || keyCollected) && !_prevExitUnlocked){
           _prevExitUnlocked = true;
           if (needsKey){ playUnlock(); showHint("THE KEY TURNS. THE EXIT IS OPEN. RUN.", 3800); }
-          else { playPaperReadySound(); showHint(`You have ${PAPERS_NEEDED}+ papers. The exit is open. RUN.`, 3600); }
+          else { playPaperReadySound(); showHint(`You have ${papersNeeded}+ papers. The exit is open. RUN.`, 3600); }
         }
       }
       scoreEl.textContent = 'SCORE ' + player.score;
@@ -3390,7 +3854,7 @@ function updatePlayer(dt){
       updateKeyIndicator();
       showHint("THE KEY IS YOURS", 3000);
       if (navigator.vibrate) navigator.vibrate([40,30,60]);
-      if (papersCollected >= PAPERS_NEEDED && !_prevExitUnlocked){
+      if (papersCollected >= papersNeeded && !_prevExitUnlocked){
         _prevExitUnlocked = true;
         setTimeout(() => {
           playUnlock();
@@ -3403,7 +3867,7 @@ function updatePlayer(dt){
   const dEx = px - exitPos.x, dEz = pz - exitPos.z;
   if (dEx*dEx + dEz*dEz < 1.8*1.8){
     const needsKey = (currentLevel === HOME_LEVEL);
-    const hasPapers = papersCollected >= PAPERS_NEEDED;
+    const hasPapers = papersCollected >= papersNeeded;
     const hasKey = !needsKey || keyCollected;
     if (hasPapers && hasKey){
       onReachExit();
@@ -3412,10 +3876,10 @@ function updatePlayer(dt){
       playDenySound();
       let msg;
       if (!hasPapers && !hasKey){
-        const need = PAPERS_NEEDED - papersCollected;
+        const need = papersNeeded - papersCollected;
         msg = `SEALED — NEED ${need} MORE PAPER${need > 1 ? 'S' : ''} AND THE KEY`;
       } else if (!hasPapers){
-        const need = PAPERS_NEEDED - papersCollected;
+        const need = papersNeeded - papersCollected;
         msg = `THE EXIT IS SEALED — FIND ${need} MORE PAPER${need > 1 ? 'S' : ''}`;
       } else {
         msg = `SEALED — THE KEY IS MISSING`;
@@ -3441,7 +3905,6 @@ function updateEnemy(dt){
   let closestSq = Infinity;
   let anyChasing = false;
   const nowMs = performance.now();
-  // ADMIN: enemy speed multiplier + freeze
   let enemySpeedMult = (theme.enemySpeedMult || 1) * ADMIN.enemySpeedMul;
   if (ADMIN.freezeEnemies) enemySpeedMult = 0;
 
@@ -3452,12 +3915,14 @@ function updateEnemy(dt){
     const distSq = dxp*dxp + dzp*dzp;
     if (distSq < closestSq) closestSq = distSq;
 
-    // ADMIN: invisibility — enemies never detect the player
     const chasing = !ADMIN.invisibility && distSq < detect2;
     if (chasing && !e.wasChasing){
       if (isFinalLevel){
         playLevel3Shriek();
         if (navigator.vibrate) navigator.vibrate([80, 40, 120]);
+      } else if (currentLevel === CARDBOARD_LEVEL){
+        // Cardboard growl — dry, crackly
+        playCardboardRustle();
       } else {
         playEnemyGrowl();
       }
@@ -3471,9 +3936,7 @@ function updateEnemy(dt){
     const inSameCell = (eci === pci && ecj === pcj);
 
     if (ADMIN.freezeEnemies){
-      // Frozen enemies don't move — but still kill on contact (unless god)
       if (distSq < 2.25){ gameOver(); return; }
-      // pulse eyes so player can still see them
       const pulse = 0.5 + Math.sin(nowMs*0.006 + e.phase)*0.5;
       e.eyeMat.color.setRGB(1, 0.15 + pulse*0.35, 0.05);
       continue;
@@ -3558,6 +4021,9 @@ function updateEnemy(dt){
     if (isFinalLevel){
       e.eyeMat.color.setRGB(0.35 + pulse*0.65, pulse*0.12, pulse*0.12);
       e.glowMat.opacity = chasing ? (0.5 + pulse*0.35) : 0.4;
+    } else if (currentLevel === CARDBOARD_LEVEL){
+      // Cardboard stalkers: warm, dim eyes
+      e.eyeMat.color.setRGB(0.9 + pulse*0.1, 0.30 + pulse*0.35, 0.05 + pulse*0.1);
     } else {
       e.eyeMat.color.setRGB(1, 0.15 + pulse*0.45, 0.05);
     }
@@ -3565,7 +4031,6 @@ function updateEnemy(dt){
     if (distSq < 2.25){ gameOver(); return; }
   }
 
-  // Mutual separation (skip if frozen)
   if (!ADMIN.freezeEnemies){
     const MIN_SEP = 1.6, MIN_SEP2 = MIN_SEP * MIN_SEP;
     for (let a = 0; a < enemies.length; a++){
@@ -3622,7 +4087,7 @@ function updateExit(now){
   const t = now * 2;
   const needsKey = (currentLevel === HOME_LEVEL);
   const hasKey = !needsKey || keyCollected;
-  const locked = papersCollected < PAPERS_NEEDED || !hasKey;
+  const locked = papersCollected < papersNeeded || !hasKey;
 
   if (needsKey && !keyCollected){
     padlockGroup.visible = true;
@@ -3631,7 +4096,6 @@ function updateExit(now){
     padlockGroup.visible = false;
   }
 
-  // ADMIN: reveal exit forces beacon on
   const shouldBeacon = levelElapsed >= EXIT_BEACON_TIME || ADMIN.revealExit;
   if (shouldBeacon && !exitBeaconActive){
     exitBeaconActive = true;
@@ -3797,6 +4261,19 @@ function applyAdminUI(){
   el('vSpeedMul').textContent = ADMIN.speedMul.toFixed(2) + 'x';
   el('aEnemyMul').value = Math.round(ADMIN.enemySpeedMul * 100);
   el('vEnemyMul').textContent = ADMIN.enemySpeedMul.toFixed(2) + 'x';
+
+  el('aPapersNeed').value = papersNeeded;
+  el('vPapersNeed').textContent = papersNeeded;
+  el('aSpawnPaper').value = spawnPaperCount;
+  el('vSpawnPaper').textContent = spawnPaperCount;
+  el('aSpawnGold').value = spawnGoldCount;
+  el('vSpawnGold').textContent = spawnGoldCount;
+  el('aSpawnWater').value = spawnWaterCount;
+  el('vSpawnWater').textContent = spawnWaterCount;
+  el('aSpawnBattery').value = spawnBatteryCount;
+  el('vSpawnBattery').textContent = spawnBatteryCount;
+  el('aEnemyCount').value = enemyCount;
+  el('vEnemyCount').textContent = enemyCount;
 }
 function openAdminCode(){
   el('adminCodeErr').classList.remove('show');
@@ -3834,9 +4311,14 @@ function adminTeleportLevel(n){
   buildLevel(n);
   adminStatus('TELEPORTED TO LEVEL ' + n);
 }
+function adminRebuild(){
+  if (!grid){ adminStatus('START A GAME FIRST'); return; }
+  buildLevel(currentLevel);
+  adminStatus('LEVEL ' + currentLevel + ' REBUILT');
+}
 function adminGivePapers(){
   if (state !== 'playing' && state !== 'admin' && state !== 'paused'){ adminStatus('START A GAME FIRST'); return; }
-  papersCollected = PAPERS_NEEDED;
+  papersCollected = papersNeeded;
   updatePaperCounter(true);
   const needsKey = (currentLevel === HOME_LEVEL);
   if (!needsKey || keyCollected){
@@ -3848,13 +4330,13 @@ function adminGivePapers(){
   }
 }
 function adminGiveKey(){
-  if (currentLevel !== HOME_LEVEL){ adminStatus('KEY EXISTS ONLY ON LEVEL 3'); return; }
+  if (currentLevel !== HOME_LEVEL){ adminStatus('KEY EXISTS ONLY ON THE HOME LEVEL (4)'); return; }
   if (keyCollected){ adminStatus('ALREADY HAVE KEY'); return; }
   keyCollected = true;
   if (keyObject) keyObject.visible = false;
   updateKeyIndicator();
   playKeyPickup();
-  if (papersCollected >= PAPERS_NEEDED && !_prevExitUnlocked){
+  if (papersCollected >= papersNeeded && !_prevExitUnlocked){
     _prevExitUnlocked = true;
     playUnlock();
     adminStatus('KEY GIVEN · EXIT OPEN');
@@ -3876,7 +4358,7 @@ function adminTPSpawn(){
 }
 function adminUnlockAll(){
   if (!grid){ adminStatus('START A GAME FIRST'); return; }
-  papersCollected = PAPERS_NEEDED;
+  papersCollected = papersNeeded;
   updatePaperCounter(true);
   if (currentLevel === HOME_LEVEL){
     keyCollected = true;
@@ -3902,9 +4384,46 @@ function bindAdminControls(){
     ADMIN.enemySpeedMul = parseInt(e.target.value)/100;
     el('vEnemyMul').textContent = ADMIN.enemySpeedMul.toFixed(2) + 'x';
   });
+
+  el('aPapersNeed').addEventListener('input', e => {
+    papersNeeded = parseInt(e.target.value);
+    el('vPapersNeed').textContent = papersNeeded;
+    updatePaperCounter(false);
+    const needsKey = (currentLevel === HOME_LEVEL);
+    if (grid && papersCollected >= papersNeeded && (!needsKey || keyCollected) && !_prevExitUnlocked){
+      _prevExitUnlocked = true;
+      playUnlock();
+      adminStatus('REQUIREMENT MET · EXIT OPEN');
+    }
+  });
+
+  el('aSpawnPaper').addEventListener('input', e => {
+    spawnPaperCount = parseInt(e.target.value);
+    el('vSpawnPaper').textContent = spawnPaperCount;
+  });
+  el('aSpawnGold').addEventListener('input', e => {
+    spawnGoldCount = parseInt(e.target.value);
+    el('vSpawnGold').textContent = spawnGoldCount;
+  });
+  el('aSpawnWater').addEventListener('input', e => {
+    spawnWaterCount = parseInt(e.target.value);
+    el('vSpawnWater').textContent = spawnWaterCount;
+  });
+  el('aSpawnBattery').addEventListener('input', e => {
+    spawnBatteryCount = parseInt(e.target.value);
+    el('vSpawnBattery').textContent = spawnBatteryCount;
+  });
+
+  el('aEnemyCount').addEventListener('input', e => {
+    enemyCount = parseInt(e.target.value);
+    el('vEnemyCount').textContent = enemyCount;
+    if (grid) ensureEnemyCount(enemyCount);
+  });
+
   document.querySelectorAll('#aTPLevels button').forEach(b => b.addEventListener('click', () => {
     adminTeleportLevel(parseInt(b.dataset.v));
   }));
+  el('aRebuild').addEventListener('click', adminRebuild);
   el('aGivePapers').addEventListener('click', adminGivePapers);
   el('aGiveKey').addEventListener('click', adminGiveKey);
   el('aTPExit').addEventListener('click', adminTPExit);
@@ -3942,10 +4461,18 @@ function animate(){
     if (_ambientTimer <= 0){
       _ambientTimer = 10 + Math.random() * 16;
       const r = Math.random();
-      if (r < 0.32) playAmbientCreak();
-      else if (r < 0.55) playDistantFootstep();
-      else if (r < 0.72) playDistantThump();
-      else if (r < 0.82) playWhisper();
+      if (currentLevel === CARDBOARD_LEVEL){
+        // Cardboard level: more frequent dry rustling + occasional creak
+        if (r < 0.45) playCardboardRustle();
+        else if (r < 0.70) playCardboardRustle();
+        else if (r < 0.85) playAmbientCreak();
+        else playWhisper();
+      } else {
+        if (r < 0.32) playAmbientCreak();
+        else if (r < 0.55) playDistantFootstep();
+        else if (r < 0.72) playDistantThump();
+        else if (r < 0.82) playWhisper();
+      }
     }
 
     updatePlayer(dt);
